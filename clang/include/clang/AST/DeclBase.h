@@ -46,6 +46,7 @@ class BlockDecl;
 class DeclContext;
 class ExternalSourceSymbolAttr;
 class FunctionDecl;
+class VarDecl;
 class FunctionType;
 class IdentifierInfo;
 enum Linkage : unsigned char;
@@ -1076,6 +1077,8 @@ public:
            DeclKind == FunctionTemplate;
   }
 
+  bool isVarDecl() const;
+
   /// If this is a declaration that describes some template, this
   /// method returns that template declaration.
   ///
@@ -1094,6 +1097,11 @@ public:
 
   const FunctionDecl *getAsFunction() const {
     return const_cast<Decl *>(this)->getAsFunction();
+  }
+
+  VarDecl *getAsVar() LLVM_READONLY;
+  const VarDecl *getAsVar() const {
+    return const_cast<Decl*>(this)->getAsVar();
   }
 
   /// Changes the namespace of this declaration to reflect that it's

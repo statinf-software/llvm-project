@@ -119,6 +119,8 @@ add_clang_library(clangAST
   TypePrinter.cpp
   VTableBuilder.cpp
   VTTBuilder.cpp
+  StatInfInstrDeclPrinter.cpp
+  StatInfInstrStmtPrinter.cpp
 
   LINK_LIBS
   clangBasic
