@@ -232,8 +232,18 @@ FunctionDecl *Decl::getAsFunction() {
   return nullptr;
 }
 
+VarDecl *Decl::getAsVar() {
+  if (auto *FD = dyn_cast<VarDecl>(this))
+    return FD;
+  return nullptr;
+}
+
 bool Decl::isTemplateDecl() const {
   return isa<TemplateDecl>(this);
+}
+
+bool Decl::isVarDecl() const {
+  return isa<VarDecl>(this);
 }
 
 TemplateDecl *Decl::getDescribedTemplate() const {
