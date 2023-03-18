@@ -679,6 +679,11 @@ void StatInfInstrStmtPrinter::VisitSEHLeaveStmt(SEHLeaveStmt *Node) {
   if (Policy.IncludeNewlines) OS << NL;
 }
 
+void StatInfInstrStmtPrinter::VisitPragmaLiebherrStmt(PragmaLiebherrStmt *Node) {
+  Indent() << "#pragma " << Node->getPragmaLbl()->getString().str() << Node->getRawParams()->getString().str();
+  if (Policy.IncludeNewlines) OS << NL;
+}
+
 //===----------------------------------------------------------------------===//
 //  OpenMP directives printing methods
 //===----------------------------------------------------------------------===//

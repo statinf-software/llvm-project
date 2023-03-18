@@ -498,6 +498,13 @@ Retry:
   case tok::annot_pragma_attribute:
     HandlePragmaAttribute();
     return StmtEmpty();
+
+  case tok::annot_pragma_CODE_ALIGN:
+  case tok::annot_pragma_CODE_SECTION:
+  case tok::annot_pragma_DATA_ALIGN:
+  case tok::annot_pragma_DATA_SECTION:
+  case tok::annot_pragma_diag_suppress:
+    return ParsePragmaLiebherr();
   }
 
   // If we reached this code, the statement must end in a semicolon.
@@ -2429,6 +2436,17 @@ StmtResult Parser::ParsePragmaLoopHint(StmtVector &Stmts,
     Attrs.Range.setBegin(StartLoc);
 
   return S;
+}
+
+StmtResult Parser::ParsePragmaLiebherr() {
+  SourceLocation PragmaLoc = Tok.getLocation();
+  ParsedAttributes TempAttrs(AttrFactory);
+
+  PragmaLiebherrInfo *Info = static_cast<PragmaLiebherrInfo *>(Tok.getAnnotationValue());
+  IdentifierInfo *PragmaNameInfo = Info->PragmaName.getIdentifierInfo();
+
+  ConsumeAnnotationToken();
+  return Actions.ActOnPragmaLiebherrStmt(PragmaLoc, Info->PragmaLbl, Info->RawParams, getCurScope());
 }
 
 Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {

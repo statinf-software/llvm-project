@@ -409,6 +409,10 @@ StmtProfiler::VisitObjCAutoreleasePoolStmt(const ObjCAutoreleasePoolStmt *S) {
   VisitStmt(S);
 }
 
+void StmtProfiler::VisitPragmaLiebherrStmt(const PragmaLiebherrStmt *Node) {
+  VisitStmt(Node);
+}
+
 namespace {
 class OMPClauseProfiler : public ConstOMPClauseVisitor<OMPClauseProfiler> {
   StmtProfiler *Profiler;

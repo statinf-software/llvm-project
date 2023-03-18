@@ -1431,3 +1431,10 @@ bool CapturedStmt::capturesVariable(const VarDecl *Var) const {
 
   return false;
 }
+
+// PragmaLiebherrStmt
+PragmaLiebherrStmt *PragmaLiebherrStmt::Create(const ASTContext &Ctx, SourceLocation PL, StringLiteral *PragmaLbl, StringLiteral *RawParams) {
+  void *Mem = Ctx.Allocate(totalSizeToAlloc<StringLiteral *, SourceLocation>(2, true),
+                           alignof(PragmaLiebherrStmt));
+  return new (Mem) PragmaLiebherrStmt(PL, PragmaLbl, RawParams);
+}

@@ -361,6 +361,14 @@ private:
   Sema &Actions;
 };
 
+struct PragmaLiebherrHandler : public PragmaHandler {
+  PragmaLiebherrHandler(std::string name, tok::TokenKind k): PragmaHandler(name), Kind(k) {}
+  void HandlePragma(Preprocessor &PP, PragmaIntroducer Introducer,
+                    Token &FirstToken) override;
+private:
+  tok::TokenKind Kind;
+};
+
 void markAsReinjectedForRelexing(llvm::MutableArrayRef<clang::Token> Toks) {
   for (auto &T : Toks)
     T.setFlag(clang::Token::IsReinjected);
@@ -512,6 +520,17 @@ void Parser::initializePragmaHandlers() {
     RISCVPragmaHandler = std::make_unique<PragmaRISCVHandler>(Actions);
     PP.AddPragmaHandler("clang", RISCVPragmaHandler.get());
   }
+
+  CALiebherrPragmaHandler = std::make_unique<PragmaLiebherrHandler>("CODE_ALIGN", tok::annot_pragma_CODE_ALIGN);
+  CSLiebherrPragmaHandler = std::make_unique<PragmaLiebherrHandler>("CODE_SECTION", tok::annot_pragma_CODE_SECTION);
+  DALiebherrPragmaHandler = std::make_unique<PragmaLiebherrHandler>("DATA_ALIGN", tok::annot_pragma_DATA_ALIGN);
+  DSLiebherrPragmaHandler = std::make_unique<PragmaLiebherrHandler>("DATA_SECTION", tok::annot_pragma_DATA_SECTION);
+  DILiebherrPragmaHandler = std::make_unique<PragmaLiebherrHandler>("diag_suppress", tok::annot_pragma_diag_suppress);
+  PP.AddPragmaHandler(CALiebherrPragmaHandler.get());
+  PP.AddPragmaHandler(CSLiebherrPragmaHandler.get());
+  PP.AddPragmaHandler(DALiebherrPragmaHandler.get());
+  PP.AddPragmaHandler(DSLiebherrPragmaHandler.get());
+  PP.AddPragmaHandler(DILiebherrPragmaHandler.get());
 }
 
 void Parser::resetPragmaHandlers() {
@@ -643,6 +662,12 @@ void Parser::resetPragmaHandlers() {
     PP.RemovePragmaHandler("clang", RISCVPragmaHandler.get());
     RISCVPragmaHandler.reset();
   }
+
+  PP.RemovePragmaHandler(CALiebherrPragmaHandler.get());
+  PP.RemovePragmaHandler(CSLiebherrPragmaHandler.get());
+  PP.RemovePragmaHandler(DALiebherrPragmaHandler.get());
+  PP.RemovePragmaHandler(DSLiebherrPragmaHandler.get());
+  PP.RemovePragmaHandler(DILiebherrPragmaHandler.get());
 }
 
 /// Handle the annotation token produced for #pragma unused(...)
@@ -4034,4 +4059,92 @@ void PragmaRISCVHandler::HandlePragma(Preprocessor &PP,
   }
 
   Actions.DeclareRISCVVBuiltins = true;
+}
+
+
+void PragmaLiebherrHandler::HandlePragma(Preprocessor &PP,
+                                      PragmaIntroducer Introducer,
+                                      Token &PragmaName) {
+  Token Tok;
+  PP.Lex(Tok);
+  std::string params = "";
+
+  if(Kind == tok::annot_pragma_diag_suppress) {
+    params += " ";
+    if(Tok.getIdentifierInfo())
+      params += Tok.getIdentifierInfo()->getName();
+    else
+      params += Tok.getRawIdentifier();
+
+    PP.Lex(Tok);
+    if(Tok.getKind() != tok::comma) {
+      PP.Diag(Tok.getLocation(), diag::err_pragma_Liebherr_malformed);
+    }
+    params += ",";
+
+    PP.Lex(Tok);
+    if(Tok.getIdentifierInfo())
+      params += Tok.getIdentifierInfo()->getName();
+    else
+      params += Tok.getRawIdentifier();
+
+    PP.Lex(Tok);
+    if(Tok.getKind() != tok::comma) {
+      PP.Diag(Tok.getLocation(), diag::err_pragma_Liebherr_malformed);
+    }
+    params += ",";
+    PP.Lex(Tok);
+    if(Tok.getIdentifierInfo())
+      params += Tok.getIdentifierInfo()->getName();
+    else
+      params += Tok.getRawIdentifier();
+  }
+  else {
+    if(Tok.getKind() != tok::l_paren) {
+      PP.Diag(Tok.getLocation(), diag::err_pragma_Liebherr_malformed);
+    }
+    params += "(";
+    PP.Lex(Tok);
+    if(Tok.getIdentifierInfo())
+      params += Tok.getIdentifierInfo()->getName();
+    else
+      params += Tok.getRawIdentifier();
+
+    PP.Lex(Tok);
+    if(Tok.getKind() != tok::comma) {
+      PP.Diag(Tok.getLocation(), diag::err_pragma_Liebherr_malformed);
+    }
+    params += ",";
+    
+    PP.Lex(Tok);
+    if(Tok.getIdentifierInfo())
+      params += Tok.getIdentifierInfo()->getName();
+    else
+      params += Tok.getRawIdentifier();
+
+    PP.Lex(Tok);
+    if(Tok.getKind() != tok::r_paren) {
+      PP.Diag(Tok.getLocation(), diag::err_pragma_Liebherr_malformed);
+    }
+    params += ")";
+  }
+
+  while (Tok.isNot(tok::eod)) PP.Lex(Tok);
+
+  PragmaLiebherrInfo *Info = new (PP.getPreprocessorAllocator()) PragmaLiebherrInfo;
+  Info->PragmaName = PragmaName;
+  Info->PragmaLbl = getName();
+  Info->RawParams = params;
+
+  PragmaName.startToken();
+  PragmaName.setKind(Kind);
+  PragmaName.setAnnotationValue(static_cast<void*>(Info));
+
+  SmallVector<Token, 1> PragmaList;
+  PragmaList.push_back(PragmaName);
+  auto TokenArray = std::make_unique<Token[]>(PragmaList.size());
+  std::copy(PragmaList.begin(), PragmaList.end(), TokenArray.get());
+  PP.EnterTokenStream(std::move(TokenArray), PragmaList.size(),
+    /*DisableMacroExpansion=*/false, /*IsReinject=*/false
+  );
 }
