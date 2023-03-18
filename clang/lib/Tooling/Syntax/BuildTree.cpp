@@ -1515,6 +1515,12 @@ public:
     return true;
   }
 
+  bool WalkUpFromPragmaLiebherrStmt(PragmaLiebherrStmt *S) {
+    Builder.foldNode(Builder.getStmtRange(S),
+                     new (allocator()) syntax::PragmaLiebherrStatement, S);
+    return true;
+  }
+
   bool WalkUpFromCXXForRangeStmt(CXXForRangeStmt *S) {
     Builder.markChildToken(S->getForLoc(), syntax::NodeRole::IntroducerKeyword);
     Builder.markStmtChild(S->getBody(), syntax::NodeRole::BodyStatement);

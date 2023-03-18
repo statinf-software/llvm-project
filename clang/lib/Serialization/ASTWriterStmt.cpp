@@ -2652,6 +2652,11 @@ void ASTStmtWriter::VisitOMPTargetParallelGenericLoopDirective(
   Code = serialization::STMT_OMP_TARGET_PARALLEL_GENERIC_LOOP_DIRECTIVE;
 }
 
+void ASTStmtWriter::VisitPragmaLiebherrStmt(clang::PragmaLiebherrStmt* S) {
+  VisitStmt(S);
+  Code = serialization::STMT_PRAGMA_LIEBHERR;
+}
+
 //===----------------------------------------------------------------------===//
 // ASTWriter Implementation
 //===----------------------------------------------------------------------===//

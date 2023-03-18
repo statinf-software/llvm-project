@@ -292,3 +292,5 @@ def OMPTeamsGenericLoopDirective : StmtNode<OMPLoopDirective>;
 def OMPTargetTeamsGenericLoopDirective : StmtNode<OMPLoopDirective>;
 def OMPParallelGenericLoopDirective : StmtNode<OMPLoopDirective>;
 def OMPTargetParallelGenericLoopDirective : StmtNode<OMPLoopDirective>;
+
+def PragmaLiebherrStmt : StmtNode<Stmt>;

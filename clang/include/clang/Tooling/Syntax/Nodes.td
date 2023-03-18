@@ -234,6 +234,7 @@ def ReturnStatement : External<Statement> {}
 def RangeBasedForStatement : External<Statement> {}
 def ExpressionStatement : External<Statement> {}
 def CompoundStatement : External<Statement> {}
+def PragmaLiebherrStatement : External<Statement> {}
 
 // Declarations.
 def Declaration : External<Tree> {}

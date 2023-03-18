@@ -19333,3 +19333,9 @@ bool Sema::shouldIgnoreInHostDeviceCheck(FunctionDecl *Callee) {
   return LangOpts.CUDA && !LangOpts.CUDAIsDevice &&
          IdentifyCUDATarget(Callee) == CFT_Global;
 }
+
+Decl * Sema::ActOnPragmaLiebherrDecl(StmtResult stmt) {
+  auto *New = TopLevelStmtDecl::Create(Context, stmt.get());
+  Context.getTranslationUnitDecl()->addDecl(New);
+  return New;
+}

@@ -849,6 +849,16 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
   case tok::annot_pragma_attribute:
     HandlePragmaAttribute();
     return nullptr;
+  //Liebherr
+  case tok::annot_pragma_CODE_ALIGN:
+  case tok::annot_pragma_CODE_SECTION:
+  case tok::annot_pragma_DATA_ALIGN:
+  case tok::annot_pragma_DATA_SECTION:
+  case tok::annot_pragma_diag_suppress: {
+    StmtResult stmt = ParsePragmaLiebherr();
+    SingleDecl = Actions.ActOnPragmaLiebherrDecl(stmt);
+    break;
+  }
   case tok::semi:
     // Either a C++11 empty-declaration or attribute-declaration.
     SingleDecl =

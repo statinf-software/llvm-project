@@ -1270,6 +1270,10 @@ def warn_no_support_for_eval_method_source_on_m32 : Warning<
   "Setting the floating point evaluation method to `source` on a target"
   " without SSE is not supported.">, InGroup<Pragmas>;
 
+//Liebherr
+def err_pragma_Liebherr_malformed : Error<
+  "pragma is malformed">;
+
 // OpenCL EXTENSION pragma (OpenCL 1.1 [9.1])
 def warn_pragma_expected_colon : Warning<
   "missing ':' after %0 - ignoring">, InGroup<IgnoredPragmas>;

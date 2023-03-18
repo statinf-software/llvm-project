@@ -270,6 +270,18 @@ protected:
     SourceLocation RetLoc;
   };
 
+  class PragmaLiebherrStmtBitfields {
+    friend class PragmaLiebherrStmt;
+
+    unsigned : NumStmtBits;
+
+    // /// True if this ReturnStmt has storage for an NRVO candidate.
+    // unsigned HasNRVOCandidate : 1;
+
+    // /// The location of the "return".
+    SourceLocation PragmaLoc;
+  };
+
   class SwitchCaseBitfields {
     friend class SwitchCase;
     friend class CaseStmt;
@@ -1019,6 +1031,7 @@ protected:
     BreakStmtBitfields BreakStmtBits;
     ReturnStmtBitfields ReturnStmtBits;
     SwitchCaseBitfields SwitchCaseBits;
+    PragmaLiebherrStmtBitfields PragmaLiebherrStmtBits;
 
     // Expressions
     ExprBitfields ExprBits;
@@ -3740,6 +3753,42 @@ public:
   child_range children();
 
   const_child_range children() const;
+};
+
+/// PragmaLiebherrStmt - This represents a pragma.
+class PragmaLiebherrStmt : public Stmt,
+      private llvm::TrailingObjects<PragmaLiebherrStmt, StringLiteral *, SourceLocation> {
+  StringLiteral *PragmaLbl=nullptr;
+  StringLiteral *RawParams=nullptr;
+
+  PragmaLiebherrStmt(SourceLocation CL, StringLiteral *lbl, StringLiteral *params) : 
+          Stmt(PragmaLiebherrStmtClass), PragmaLbl(lbl), RawParams(params) {
+    setPragmaLoc(CL);
+  }
+public:
+  static PragmaLiebherrStmt *Create(const ASTContext &C, SourceLocation Loc, StringLiteral *lbl, StringLiteral *params);
+
+  SourceLocation getPragmaLoc() const { return PragmaLiebherrStmtBits.PragmaLoc; }
+  void setPragmaLoc(SourceLocation L) { PragmaLiebherrStmtBits.PragmaLoc = L; }
+
+  StringLiteral * getPragmaLbl() { return PragmaLbl; }
+  StringLiteral * getRawParams() { return RawParams; }
+
+  SourceLocation getBeginLoc() const { return getPragmaLoc(); }
+  SourceLocation getEndLoc() const { return getPragmaLoc(); }
+
+  static bool classof(const Stmt *T) {
+    return T->getStmtClass() == PragmaLiebherrStmtClass;
+  }
+
+  // Iterators
+  child_range children() {
+    return child_range(child_iterator(), child_iterator());
+  }
+
+  const_child_range children() const {
+    return const_child_range(const_child_iterator(), const_child_iterator());
+  }
 };
 
 } // namespace clang

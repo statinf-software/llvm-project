@@ -318,6 +318,12 @@ public:
   Expression *getReturnValue();
 };
 
+class PragmaLiebherrStatement final : public Statement {
+public:
+  PragmaLiebherrStatement() : Statement(NodeKind::PragmaLiebherrStatement) {}
+  static bool classof(const Node *N);
+};
+
 /// for (<decl> : <init>) <body>
 class RangeBasedForStatement final : public Statement {
 public:

@@ -216,6 +216,11 @@ class Parser : public CodeCompletionHandler {
   std::unique_ptr<PragmaHandler> MaxTokensHerePragmaHandler;
   std::unique_ptr<PragmaHandler> MaxTokensTotalPragmaHandler;
   std::unique_ptr<PragmaHandler> RISCVPragmaHandler;
+  std::unique_ptr<PragmaHandler> CALiebherrPragmaHandler;
+  std::unique_ptr<PragmaHandler> CSLiebherrPragmaHandler;
+  std::unique_ptr<PragmaHandler> DALiebherrPragmaHandler;
+  std::unique_ptr<PragmaHandler> DSLiebherrPragmaHandler;
+  std::unique_ptr<PragmaHandler> DILiebherrPragmaHandler;
 
   std::unique_ptr<CommentHandler> CommentSemaHandler;
 
@@ -2112,6 +2117,8 @@ private:
   StmtResult ParsePragmaLoopHint(StmtVector &Stmts, ParsedStmtContext StmtCtx,
                                  SourceLocation *TrailingElseLoc,
                                  ParsedAttributes &Attrs);
+  StmtResult ParsePragmaLiebherr();
+
 
   /// Describes the behavior that should be taken for an __if_exists
   /// block.

@@ -5025,6 +5025,11 @@ public:
   StmtResult ActOnContinueStmt(SourceLocation ContinueLoc, Scope *CurScope);
   StmtResult ActOnBreakStmt(SourceLocation BreakLoc, Scope *CurScope);
 
+  StmtResult ActOnPragmaLiebherrStmt(SourceLocation PragmaLoc, 
+                            StringRef PragmaLbl, std::string RawParam,
+                             Scope *CurScope);
+  Decl * ActOnPragmaLiebherrDecl(StmtResult stmt);
+
   void ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
                                 CapturedRegionKind Kind, unsigned NumParams);
   typedef std::pair<StringRef, QualType> CapturedParamNameType;

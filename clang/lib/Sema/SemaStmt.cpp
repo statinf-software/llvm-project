@@ -39,6 +39,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/SmallVector.h"
+#include "clang/AST/Expr.h"
 
 using namespace clang;
 using namespace sema;
@@ -3344,6 +3345,23 @@ Sema::ActOnBreakStmt(SourceLocation BreakLoc, Scope *CurScope) {
   CheckJumpOutOfSEHFinally(*this, BreakLoc, *S);
 
   return new (Context) BreakStmt(BreakLoc);
+}
+
+StmtResult
+Sema::ActOnPragmaLiebherrStmt(SourceLocation PragmaLoc, StringRef PragmaLbl, std::string RawParams, Scope *CurScope) {
+  QualType CharTy = Context.CharTy;
+  StringLiteral::StringKind Kind = StringLiteral::Ordinary;
+  QualType StrTy = Context.getStringLiteralArrayType(CharTy, RawParams.size()+1);
+
+  StringLiteral *LitPragmaLbl = StringLiteral::Create(Context, PragmaLbl,
+                                             Kind, false, StrTy,
+                                             PragmaLoc);
+
+  StringLiteral *LitRawParams = StringLiteral::Create(Context, StringRef(RawParams),
+                                             Kind, false, StrTy,
+                                             PragmaLoc);
+
+  return PragmaLiebherrStmt::Create(Context, PragmaLoc, LitPragmaLbl, LitRawParams);
 }
 
 /// Determine whether the given expression might be move-eligible or
