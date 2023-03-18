@@ -70,20 +70,23 @@ namespace clang {
     PrintingPolicy Policy;
     std::string NL;
     const ASTContext *Context;
-    bool enable_instrumentation = false;
-    bool enter_function_body = false;
-    bool enter_loop_body = false;
-    bool enter_then_body = false;
-    bool enter_else_body = false;
-    bool enter_main_function = false;
-    uint32_t switch_case_count = 0;
+    bool enable_instrumentation = false; // enable instrumentation in general, used only for functions reachable from an given entrypoint
+    bool enter_function_body = false; // next CompoundStmt is the body of a function
+    bool enter_loop_body = false; // next CompoundStmt is the body of a loop
+    bool enter_then_body = false; // next CompoundStmt is the body of a then
+    bool enter_else_body = false; // next CompoundStmt is the body of a else
+    bool enter_main_function = false; // next CompoundStmt is the body of the main function
+    uint32_t switch_case_count = 0; // counts how much case a SwitchStmt has
+    bool EnableStructuralAnalysis; // Enable the addition of the macros only for the structural analysis
+    bool EnableTemporalAnalysis; // Enable the addition of the macros only for the temporal analysis
 
   public:
     StatInfInstrStmtPrinter(raw_ostream &os, PrinterHelper *helper,
                 const PrintingPolicy &Policy, unsigned Indentation = 0,
-                StringRef NL = "\n", const ASTContext *Context = nullptr)
+                StringRef NL = "\n", const ASTContext *Context = nullptr,
+                bool esa=true, bool eta=true)
         : OS(os), IndentLevel(Indentation), Helper(helper), Policy(Policy),
-          NL(NL), Context(Context) {}
+          NL(NL), Context(Context), EnableStructuralAnalysis(esa), EnableTemporalAnalysis(eta) {}
 
     void PrintStmt(Stmt *S) { PrintStmt(S, Policy.Indentation); }
 

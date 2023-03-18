@@ -43,17 +43,35 @@ static cl::opt<std::string>
         cl::desc("Entrypoint function name to start the CallGraph"),
         cl::cat(StatInfInstrCategory)
     );
-static cl::opt<std::string>
-    OutputPath("output-path",
-                   cl::desc(Options.getOptionHelpText(options::OPT_o)),
-                   cl::cat(StatInfInstrCategory));
 static cl::list<std::string>
     IncludePath("I", cl::desc(Options.getOptionHelpText(options::OPT_include)),
                   cl::cat(StatInfInstrCategory));
 static cl::list<std::string>
     Definitions("D", cl::desc(Options.getOptionHelpText(options::OPT_defsym)),
                   cl::cat(StatInfInstrCategory));
+static cl::opt<bool>
+    OptDisStructAnalysis("no-structural", 
+                  cl::desc("Disable structural analysis instrumentation."),
+                  cl::cat(StatInfInstrCategory));
+static cl::opt<bool>
+    OptDisTempAnalysis("no-temporal", 
+                  cl::desc("Disable temporal analysis instrumentation"),
+                  cl::cat(StatInfInstrCategory));
+static cl::opt<string>
+    InstrMacroDefFilePath(
+      "instr-macro-def",
+      cl::desc("Fullname of the file with the macro definition, default current_source_dir/statinf_instrumentation.h"),
+      cl::cat(StatInfInstrCategory)
+    );
+static cl::opt<bool>
+    StdOut(
+      "stdout",
+      cl::desc("Display the generated code on the standard output. If not, it will create a file"
+      "named after the first found file with the name suffixed with _instrumented"),
+      cl::cat(StatInfInstrCategory)
+    );
 
+                
 namespace {
 
 class CallGraphExtract : public MatchFinder::MatchCallback {
@@ -76,7 +94,7 @@ public:
   explicit StatInfPrinterLauncher(llvm::raw_ostream &os, clang::CallGraph *cg) : clang::ASTConsumer(), OS(os), callgraph(cg) {}
 
   void HandleTranslationUnit(clang::ASTContext &Context) override {
-    clang::StatInfInstrDeclPrinter printer(OS, Context.getPrintingPolicy(), Context, callgraph);
+    clang::StatInfInstrDeclPrinter printer(OS, Context.getPrintingPolicy(), Context, callgraph, !OptDisStructAnalysis.getValue(), !OptDisTempAnalysis.getValue(), InstrMacroDefFilePath);
     auto TU = Context.getTranslationUnitDecl();
     printer.Visit(TU);
   }
@@ -97,6 +115,9 @@ int main(int argc, const char **argv) {
 
     if(EntryPoint.empty()) {
       EntryPoint = "main";
+    }
+    if(InstrMacroDefFilePath.empty()) {
+      InstrMacroDefFilePath = "statinf_instrumentation.h";
     }
 
     vector<string> args{"-Wno-int-conversion"};
@@ -119,6 +140,20 @@ int main(int argc, const char **argv) {
         continue;
       }
       AbsolutePaths.push_back(std::move(*AbsPath));
+    }
+
+    std::unique_ptr<llvm::raw_ostream> OutFile = nullptr;
+    if(!StdOut.getValue()) {
+      // Get ouput file for the final printing
+      std::string OutputFileName = AbsolutePaths.front();
+      size_t posdot = OutputFileName.rfind('.');
+      OutputFileName = OutputFileName.substr(0, posdot)+"_instrumented"+OutputFileName.substr(posdot, OutputFileName.size());
+      std::error_code EC;
+      OutFile = std::make_unique<llvm::raw_fd_ostream>(OutputFileName, EC);
+      if (EC) {
+        llvm::errs() << EC.message() << "\n";
+        return -1;
+      }
     }
 
     // Add include paths
@@ -182,7 +217,7 @@ int main(int argc, const char **argv) {
       new_code, args, "/tmp/file.c",
       "statinf-instrumentation", PCHContainerOps
     );
-    unique_ptr<clang::ASTConsumer> final_printer = clang::CreateASTPrinter(nullptr, "");
+    unique_ptr<clang::ASTConsumer> final_printer = clang::CreateASTPrinter(move(OutFile), "");
     final_printer->Initialize(final_ast->getASTContext());
     final_printer->HandleTranslationUnit(final_ast->getASTContext());
 

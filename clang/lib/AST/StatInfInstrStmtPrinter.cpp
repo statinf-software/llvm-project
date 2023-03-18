@@ -27,22 +27,22 @@ void StatInfInstrStmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
   
   bool loc_enter_function_body = enter_function_body;
   enter_function_body = false;
-  if(enable_instrumentation && loc_enter_function_body)
+  if(EnableTemporalAnalysis && enable_instrumentation && loc_enter_function_body)
     Indent(Policy.Indentation) << "STATINF_ENTER_FUNCTION();" << NL;
 
   bool loc_enter_loop_body = enter_loop_body;
   enter_loop_body = false;
-  if(enable_instrumentation && loc_enter_loop_body)
+  if(EnableStructuralAnalysis && enable_instrumentation && loc_enter_loop_body)
     Indent(Policy.Indentation) << "STATINF_ENTER_LOOP();" << NL;
 
   bool loc_enter_then_body = enter_then_body;
   enter_then_body = false;
-  if(enable_instrumentation && loc_enter_then_body)
+  if(EnableStructuralAnalysis && enable_instrumentation && loc_enter_then_body)
     Indent(Policy.Indentation) << "STATINF_ENTER_THEN();" << NL;
 
   bool loc_enter_else_body = enter_else_body;
   enter_else_body = false;
-  if(enable_instrumentation && loc_enter_else_body)
+  if(EnableStructuralAnalysis && enable_instrumentation && loc_enter_else_body)
     Indent(Policy.Indentation) << "STATINF_ENTER_ELSE();" << NL;
 
   for (auto *I : Node->body()) {
@@ -52,7 +52,7 @@ void StatInfInstrStmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
 
   bool loc_enter_main_function = enter_main_function;
   enter_main_function = false;
-  if(loc_enter_main_function) {
+  if((EnableStructuralAnalysis || EnableTemporalAnalysis) && loc_enter_main_function) {
     Indent(Policy.Indentation) << "STATINF_MAIN_INIT();" << NL;
   }
 
@@ -61,10 +61,11 @@ void StatInfInstrStmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
       PrintStmt(I);
   }
 
-  if(enable_instrumentation && loc_enter_function_body) {
+  if(EnableTemporalAnalysis && enable_instrumentation && loc_enter_function_body) {
     if(!isa<ReturnStmt>(Node->body_back()))
       Indent(Policy.Indentation) << "STATINF_EXIT_FUNCTION();" << NL; 
   }
+
   Indent() << "}";
 }
 
@@ -162,7 +163,7 @@ void StatInfInstrStmtPrinter::VisitCaseStmt(CaseStmt *Node) {
   }
   OS << ":" << NL;
 
-  if(enable_instrumentation)
+  if(EnableStructuralAnalysis && enable_instrumentation)
     Indent(Policy.Indentation) << "STATINF_SWITCH_CASE("<< switch_case_count++ << ")" << NL;
 
   PrintStmt(Node->getSubStmt(), 0);
@@ -170,7 +171,7 @@ void StatInfInstrStmtPrinter::VisitCaseStmt(CaseStmt *Node) {
 
 void StatInfInstrStmtPrinter::VisitDefaultStmt(DefaultStmt *Node) {
   Indent(-1) << "default:" << NL;
-  if(enable_instrumentation)
+  if(EnableStructuralAnalysis && enable_instrumentation)
     Indent(Policy.Indentation) << "STATINF_SWITCH_CASE("<< switch_case_count++ << ");" << NL;
   PrintStmt(Node->getSubStmt(), 0);
 }
@@ -202,7 +203,7 @@ void StatInfInstrStmtPrinter::PrintRawIfStmt(IfStmt *If) {
     }
     else {
       OS << " {" << NL;
-      if(enable_instrumentation)
+      if(EnableStructuralAnalysis && enable_instrumentation)
         Indent(Policy.Indentation) << "STATINF_ENTER_THEN();" << NL;
       PrintStmt(If->getThen());
       Indent() << "}" << NL;
@@ -217,7 +218,7 @@ void StatInfInstrStmtPrinter::PrintRawIfStmt(IfStmt *If) {
     }
     else {
       Indent() << " {" << NL;
-      if(enable_instrumentation)
+      if(EnableStructuralAnalysis && enable_instrumentation)
         Indent(Policy.Indentation) << "STATINF_ENTER_ELSE();" << NL;
       if(Else)
         PrintStmt(Else);
@@ -244,7 +245,7 @@ void StatInfInstrStmtPrinter::PrintRawIfStmt(IfStmt *If) {
     OS << (If->getElse() ? " " : NL);
   } else {
     OS << " {" << NL;
-    if(enable_instrumentation)
+    if(EnableStructuralAnalysis && enable_instrumentation)
       Indent(Policy.Indentation) << "STATINF_ENTER_THEN();" << NL;
     PrintStmt(If->getThen());
     Indent() << "}" << NL;
@@ -260,19 +261,19 @@ void StatInfInstrStmtPrinter::PrintRawIfStmt(IfStmt *If) {
       OS << NL;
     } else if (auto *ElseIf = dyn_cast<IfStmt>(Else)) {
       OS << " {" << NL;
-      if(enable_instrumentation)
+      if(EnableStructuralAnalysis && enable_instrumentation)
         Indent(Policy.Indentation) << "STATINF_ENTER_ELSE();" << NL;
       PrintRawIfStmt(ElseIf);
       Indent() << "}" << NL;
     } else {
       OS << " {" << NL;
-      if(enable_instrumentation)
+      if(EnableStructuralAnalysis && enable_instrumentation)
         Indent(Policy.Indentation) << "STATINF_ENTER_ELSE();" << NL;
       PrintStmt(Else);
       Indent() << "}" << NL;
     }
   }
-  else if(enable_instrumentation) {
+  else if(EnableStructuralAnalysis && enable_instrumentation) {
     OS << " {" << NL;
     Indent(Policy.Indentation) << "STATINF_ENTER_ELSE();" << NL;
     Indent() << "}" << NL;
@@ -285,7 +286,7 @@ void StatInfInstrStmtPrinter::VisitIfStmt(IfStmt *If) {
 }
 
 void StatInfInstrStmtPrinter::VisitSwitchStmt(SwitchStmt *Node) {
-  if(enable_instrumentation) {
+  if(EnableStructuralAnalysis && enable_instrumentation) {
     uint32_t num_cases = 0;
     CompoundStmt *body = dyn_cast<CompoundStmt>(Node->getBody());
     if(body) {
@@ -325,12 +326,12 @@ void StatInfInstrStmtPrinter::VisitWhileStmt(WhileStmt *Node) {
   }
   else {
     OS << " {" << NL;
-    if(enable_instrumentation)
+    if(EnableStructuralAnalysis && enable_instrumentation)
       Indent(Policy.Indentation) << "STATINF_ENTER_LOOP();" << NL;
     PrintStmt(Node->getBody());
     OS << "}" << NL;
   }
-  if(enable_instrumentation)
+  if(EnableStructuralAnalysis && enable_instrumentation)
     Indent() << "STATINF_EXIT_LOOP();" << NL;
 }
 
@@ -370,12 +371,12 @@ void StatInfInstrStmtPrinter::VisitForStmt(ForStmt *Node) {
   }
   else {
     Indent() << " {" << NL;
-    if(enable_instrumentation)
+    if(EnableStructuralAnalysis && enable_instrumentation)
       Indent(Policy.Indentation) << "STATINF_ENTER_LOOP();" << NL;
     PrintControlledStmt(Node->getBody());
     Indent() << "}" << NL;
   }
-  if(enable_instrumentation)
+  if(EnableStructuralAnalysis && enable_instrumentation)
     Indent() << "STATINF_EXIT_LOOP();" << NL;
 }
 
@@ -443,7 +444,7 @@ void StatInfInstrStmtPrinter::VisitBreakStmt(BreakStmt *Node) {
 }
 
 void StatInfInstrStmtPrinter::VisitReturnStmt(ReturnStmt *Node) {
-  if(enable_instrumentation)
+  if(EnableTemporalAnalysis && enable_instrumentation)
     Indent() << "STATINF_EXIT_FUNCTION();" << NL; 
   Indent() << "return";
   if (Node->getRetValue()) {
