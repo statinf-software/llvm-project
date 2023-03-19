@@ -25,23 +25,36 @@ void StatInfInstrStmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
   OS << "{" << NL;
   PrintFPPragmas(Node);
   
+  // Need to do a local copy first to avoid messing up with nested CompoundStmt
   bool loc_enter_function_body = enter_function_body;
   enter_function_body = false;
+  bool loc_enter_entrypoint = entry_point_func;
+  entry_point_func = false;
+  if(loc_enter_entrypoint)
+    ret_entry_point_func = true;
+  bool loc_enter_loop_body = enter_loop_body;
+  enter_loop_body = false;
+  bool loc_enter_then_body = enter_then_body;
+  enter_then_body = false;
+  bool loc_enter_else_body = enter_else_body;
+  enter_else_body = false;
+  bool loc_enter_main_function = enter_main_function;
+  enter_main_function = false;
+
+  if((EnableStructuralAnalysis || EnableTemporalAnalysis) && loc_enter_main_function)
+    Indent(Policy.Indentation) << "STATINF_MAIN_INIT();" << NL;
+  
   if(EnableTemporalAnalysis && enable_instrumentation && loc_enter_function_body)
     Indent(Policy.Indentation) << "STATINF_ENTER_FUNCTION();" << NL;
 
-  bool loc_enter_loop_body = enter_loop_body;
-  enter_loop_body = false;
   if(EnableStructuralAnalysis && enable_instrumentation && loc_enter_loop_body)
     Indent(Policy.Indentation) << "STATINF_ENTER_LOOP();" << NL;
 
-  bool loc_enter_then_body = enter_then_body;
-  enter_then_body = false;
+  
   if(EnableStructuralAnalysis && enable_instrumentation && loc_enter_then_body)
     Indent(Policy.Indentation) << "STATINF_ENTER_THEN();" << NL;
 
-  bool loc_enter_else_body = enter_else_body;
-  enter_else_body = false;
+  
   if(EnableStructuralAnalysis && enable_instrumentation && loc_enter_else_body)
     Indent(Policy.Indentation) << "STATINF_ENTER_ELSE();" << NL;
 
@@ -50,12 +63,7 @@ void StatInfInstrStmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
       PrintStmt(I);
   }
 
-  bool loc_enter_main_function = enter_main_function;
-  enter_main_function = false;
-  if((EnableStructuralAnalysis || EnableTemporalAnalysis) && loc_enter_main_function) {
-    Indent(Policy.Indentation) << "STATINF_MAIN_INIT();" << NL;
-  }
-
+  
   for (auto *I : Node->body()) {
     if(!isa<DeclStmt>(I))
       PrintStmt(I);
@@ -64,6 +72,12 @@ void StatInfInstrStmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
   if(EnableTemporalAnalysis && enable_instrumentation && loc_enter_function_body) {
     if(!isa<ReturnStmt>(Node->body_back()))
       Indent(Policy.Indentation) << "STATINF_EXIT_FUNCTION();" << NL; 
+  }
+  
+  if(EnableStructuralAnalysis && loc_enter_entrypoint) { //no need to check if instrumentation is enable, this exit must be in the entry point
+    if(!isa<ReturnStmt>(Node->body_back()))
+      Indent(Policy.Indentation) << "STATINF_END_MEASUREMENT();" << NL; 
+    ret_entry_point_func = false; // re-initialise for further call on function decl
   }
 
   Indent() << "}";
@@ -446,6 +460,8 @@ void StatInfInstrStmtPrinter::VisitBreakStmt(BreakStmt *Node) {
 void StatInfInstrStmtPrinter::VisitReturnStmt(ReturnStmt *Node) {
   if(EnableTemporalAnalysis && enable_instrumentation)
     Indent() << "STATINF_EXIT_FUNCTION();" << NL; 
+  if(EnableStructuralAnalysis && ret_entry_point_func) //no need to check if instrumentation is enable, this return must be in the entry point
+    Indent() << "STATINF_END_MEASUREMENT();" << NL;
   Indent() << "return";
   if (Node->getRetValue()) {
     OS << " ";

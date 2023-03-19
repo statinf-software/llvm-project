@@ -450,7 +450,7 @@ static void printExplicitSpecifier(ExplicitSpecifier ES, llvm::raw_ostream &Out,
 void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
   if((EnableStructuralAnalysis || EnableTemporalAnalysis) && first_function_with_instrumentation == D) {
     Out << "#include \""<< fullpath_instr_file << "\"" << "\n";
-    Out << "STATINF_GLOBAL_INIT();" << "\n";
+    Out << "STATINF_GLOBAL_INIT();\n";
   }
   if (!D->getDescribedFunctionTemplate() &&
       !D->isFunctionTemplateSpecialization())
@@ -652,9 +652,10 @@ void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
         StatInfInstrStmtPrinter P(Out, nullptr, SubPolicy, Indentation, "\n", &Context, EnableStructuralAnalysis, EnableTemporalAnalysis);
         if(D->getName() == "main")
           P.SetEnterMainFunction();
-        else if(callgraph->getNode(D)) {
+        if(callgraph->getNode(D))
           P.SetEnableInstrumentation();
-        }
+        if(D->getName() == entrypoint_func_name.str())
+          P.SetEnterEntryPointFunc();
         P.SetEnterFunctionBody();
         P.PrintControlledStmt(D->getBody());
         P.SetDisableInstrumentation();

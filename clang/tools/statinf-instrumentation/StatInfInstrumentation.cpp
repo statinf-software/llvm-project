@@ -94,7 +94,10 @@ public:
   explicit StatInfPrinterLauncher(llvm::raw_ostream &os, clang::CallGraph *cg) : clang::ASTConsumer(), OS(os), callgraph(cg) {}
 
   void HandleTranslationUnit(clang::ASTContext &Context) override {
-    clang::StatInfInstrDeclPrinter printer(OS, Context.getPrintingPolicy(), Context, callgraph, !OptDisStructAnalysis.getValue(), !OptDisTempAnalysis.getValue(), InstrMacroDefFilePath);
+    clang::StatInfInstrDeclPrinter printer(OS, Context.getPrintingPolicy(), 
+      Context, callgraph, 
+      !OptDisStructAnalysis.getValue(), !OptDisTempAnalysis.getValue(), 
+      InstrMacroDefFilePath, EntryPoint);
     auto TU = Context.getTranslationUnitDecl();
     printer.Visit(TU);
   }
