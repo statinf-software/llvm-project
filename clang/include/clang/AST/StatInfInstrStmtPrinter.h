@@ -77,8 +77,10 @@ namespace clang {
     bool enter_else_body = false; // next CompoundStmt is the body of a else
     bool enter_main_function = false; // next CompoundStmt is the body of the main function
     uint32_t switch_case_count = 0; // counts how much case a SwitchStmt has
-    bool EnableStructuralAnalysis; // Enable the addition of the macros only for the structural analysis
-    bool EnableTemporalAnalysis; // Enable the addition of the macros only for the temporal analysis
+    bool EnableStructuralAnalysis = true; // Enable the addition of the macros only for the structural analysis
+    bool EnableTemporalAnalysis = true; // Enable the addition of the macros only for the temporal analysis
+    bool entry_point_func = false; // next CompoundStmt is the configured entrypoint
+    bool ret_entry_point_func = false; // keep the state of the entrypoint for return instruction
 
   public:
     StatInfInstrStmtPrinter(raw_ostream &os, PrinterHelper *helper,
@@ -175,6 +177,7 @@ namespace clang {
     void SetEnterMainFunction() { enter_main_function = true;}
     void SetEnableInstrumentation() { enable_instrumentation = true;}
     void SetDisableInstrumentation() { enable_instrumentation = false;}
+    void SetEnterEntryPointFunc() { entry_point_func = true;}
 
 #define ABSTRACT_STMT(CLASS)
 #define STMT(CLASS, PARENT) \

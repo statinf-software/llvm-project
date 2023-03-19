@@ -25,6 +25,7 @@ namespace clang {
     bool EnableStructuralAnalysis;
     bool EnableTemporalAnalysis;
     StringRef fullpath_instr_file;
+    StringRef entrypoint_func_name;
 
     FunctionDecl *first_function_with_instrumentation = nullptr;
 
@@ -51,12 +52,11 @@ namespace clang {
   public:
     StatInfInstrDeclPrinter(raw_ostream &Out, const PrintingPolicy &Policy,
                 const ASTContext &Context, CallGraph *cg, 
-                bool esa=true, bool eta=true, StringRef instr_file="",
+                bool esa=true, bool eta=true, StringRef instr_file="", StringRef entrypoint="main",
                 unsigned Indentation = 0, bool PrintInstantiation = false)
         : Out(Out), Policy(Policy), Context(Context), callgraph(cg), 
         EnableStructuralAnalysis(esa), EnableTemporalAnalysis(eta), fullpath_instr_file(instr_file),
-        Indentation(Indentation),
-          PrintInstantiation(PrintInstantiation) {}
+        entrypoint_func_name(entrypoint), Indentation(Indentation),PrintInstantiation(PrintInstantiation) {}
 
     void VisitDeclContext(DeclContext *DC, bool Indent = true);
 
