@@ -343,6 +343,10 @@ void ASTStmtReader::VisitReturnStmt(ReturnStmt *S) {
   S->setReturnLoc(readSourceLocation());
 }
 
+void ASTStmtReader::VisitPragmaLiebherrStmt(PragmaLiebherrStmt *S) {
+  VisitStmt(S);
+}
+
 void ASTStmtReader::VisitDeclStmt(DeclStmt *S) {
   VisitStmt(S);
   S->setStartLoc(readSourceLocation());

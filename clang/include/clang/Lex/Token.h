@@ -337,6 +337,13 @@ struct PragmaLoopHintInfo {
   Token Option;
   ArrayRef<Token> Toks;
 };
+
+struct PragmaLiebherrInfo {
+  Token PragmaName;
+  StringRef PragmaLbl;
+  std::string RawParams;
+};
+
 } // end namespace clang
 
 #endif // LLVM_CLANG_LEX_TOKEN_H

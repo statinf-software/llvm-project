@@ -1455,6 +1455,14 @@ public:
     return getSema().BuildReturnStmt(ReturnLoc, Result);
   }
 
+  /// Build a new return statement.
+  ///
+  /// By default, performs semantic analysis to build the new statement.
+  /// Subclasses may override this routine to provide different behavior.
+  StmtResult RebuildPragmaLiebherrStmt() {
+    return getSema().BuildPragmaLiebherrStmt();
+  }
+
   /// Build a new declaration statement.
   ///
   /// By default, performs semantic analysis to build the new statement.
@@ -7811,6 +7819,12 @@ TreeTransform<Derived>::TransformReturnStmt(ReturnStmt *S) {
   // FIXME: We always rebuild the return statement because there is no way
   // to tell whether the return type of the function has changed.
   return getDerived().RebuildReturnStmt(S->getReturnLoc(), Result.get());
+}
+
+template<typename Derived>
+StmtResult
+TreeTransform<Derived>::TransformPragmaLiebherrStmt(PragmaLiebherrStmt *S) {
+  return S;
 }
 
 template<typename Derived>

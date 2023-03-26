@@ -1133,7 +1133,7 @@ Decl *TemplateDeclInstantiator::VisitVarDecl(VarDecl *D,
   else
     Var = VarDecl::Create(SemaRef.Context, DC, D->getInnerLocStart(),
                           D->getLocation(), D->getIdentifier(), DI->getType(),
-                          DI, D->getStorageClass());
+                          DI, D->getStorageClass(), D->getExtraTIKw());
 
   // In ARC, infer 'retaining' for variables of retainable type.
   if (SemaRef.getLangOpts().ObjCAutoRefCount &&
@@ -2115,7 +2115,7 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
   } else {
     Function = FunctionDecl::Create(
         SemaRef.Context, DC, D->getInnerLocStart(), NameInfo, T, TInfo,
-        D->getCanonicalDecl()->getStorageClass(), D->UsesFPIntrin(),
+        D->getCanonicalDecl()->getStorageClass(), D->getExtraTIKw(), D->UsesFPIntrin(),
         D->isInlineSpecified(), D->hasWrittenPrototype(), D->getConstexprKind(),
         TrailingRequiresClause);
     Function->setFriendConstraintRefersToEnclosingTemplate(

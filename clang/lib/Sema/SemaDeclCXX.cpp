@@ -1294,7 +1294,7 @@ static bool checkTupleLikeDecomposition(Sema &S,
     auto *RefVD = VarDecl::Create(
         S.Context, Src->getDeclContext(), Loc, Loc,
         B->getDeclName().getAsIdentifierInfo(), RefType,
-        S.Context.getTrivialTypeSourceInfo(T, Loc), Src->getStorageClass());
+        S.Context.getTrivialTypeSourceInfo(T, Loc), Src->getStorageClass(), Src->getExtraTIKw());
     RefVD->setLexicalDeclContext(Src->getLexicalDeclContext());
     RefVD->setTSCSpec(Src->getTSCSpec());
     RefVD->setImplicit();

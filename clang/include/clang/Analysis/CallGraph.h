@@ -51,6 +51,8 @@ class CallGraph : public RecursiveASTVisitor<CallGraph> {
   /// This is a virtual root node that has edges to all the functions.
   CallGraphNode *Root;
 
+  bool Recursive = false;
+
 public:
   CallGraph();
   ~CallGraph();
@@ -138,6 +140,11 @@ public:
   bool shouldWalkTypesOfTypeLocs() const { return false; }
   bool shouldVisitTemplateInstantiations() const { return true; }
   bool shouldVisitImplicitCode() const { return true; }
+
+  bool shouldVisitRecursively() {return Recursive;}
+  bool shouldVisitRecursively() const {return Recursive;}
+  void shouldVisitRecursively(bool recurs) {Recursive = recurs;}
+  bool shouldVisitRecursively(Decl *D);
 
 private:
   /// Add the given declaration to the call graph.
