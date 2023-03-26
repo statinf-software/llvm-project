@@ -450,7 +450,7 @@ static llvm::Function *emitOutlinedFunctionPrologue(
     DebugFunctionDecl = FunctionDecl::Create(
         Ctx, Ctx.getTranslationUnitDecl(), FO.S->getBeginLoc(),
         SourceLocation(), DeclarationName(), FunctionTy,
-        Ctx.getTrivialTypeSourceInfo(FunctionTy), SC_Static,
+        Ctx.getTrivialTypeSourceInfo(FunctionTy), SC_Static, {},
         /*UsesFPIntrin=*/false, /*isInlineSpecified=*/false,
         /*hasWrittenPrototype=*/false);
   }

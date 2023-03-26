@@ -4342,7 +4342,7 @@ FunctionDecl *RewriteObjC::SynthBlockInitFunctionDecl(StringRef name) {
   IdentifierInfo *ID = &Context->Idents.get(name);
   QualType FType = Context->getFunctionNoProtoType(Context->VoidPtrTy);
   return FunctionDecl::Create(*Context, TUDecl, SourceLocation(),
-                              SourceLocation(), ID, FType, nullptr, SC_Extern,
+                              SourceLocation(), ID, FType, nullptr, SC_Extern, {},
                               false, false);
 }
 

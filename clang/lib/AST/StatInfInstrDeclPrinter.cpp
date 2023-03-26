@@ -351,13 +351,14 @@ void StatInfInstrDeclPrinter::VisitDeclContext(DeclContext *DC, bool Indent) {
 }
 
 void StatInfInstrDeclPrinter::VisitTranslationUnitDecl(TranslationUnitDecl *D) {
-  for(Decl *d : D->decls()) {
-    if(isa<FunctionDecl>(d) && callgraph->getNode(d)) {
-      first_function_with_instrumentation = dyn_cast<FunctionDecl>(d);
-      break;
+  if(callgraph) {
+    for(Decl *d : D->decls()) {
+      if(isa<FunctionDecl>(d) && callgraph->getNode(d)) {
+        first_function_with_instrumentation = dyn_cast<FunctionDecl>(d);
+        break;
+      }
     }
   }
-
   VisitDeclContext(D, false);
 }
 
@@ -475,6 +476,10 @@ void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     case SC_PrivateExtern: Out << "__private_extern__ "; break;
     case SC_Auto: case SC_Register:
       llvm_unreachable("invalid for functions");
+    }
+
+    for(std::string str : D->getExtraTIKw()) {
+      Out << str << " ";
     }
 
     if (D->isInlineSpecified())  Out << "inline ";
@@ -637,7 +642,9 @@ void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
         // This is a K&R function definition, so we need to print the
         // parameters.
         Out << '\n';
-        StatInfInstrDeclPrinter ParamPrinter(Out, SubPolicy, Context, callgraph, Indentation);
+        StatInfInstrDeclPrinter ParamPrinter(Out, SubPolicy, Context, callgraph, 
+        EnableStructuralAnalysis, EnableTemporalAnalysis, fullpath_instr_file, entrypoint_func_name,
+        Indentation);
         Indentation += Policy.Indentation;
         for (unsigned i = 0, e = D->getNumParams(); i != e; ++i) {
           Indent();
@@ -649,10 +656,11 @@ void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
       if (D->getBody()) {
         // D->getBody()->printPrettyControlled(Out, nullptr, SubPolicy, Indentation, "\n",
         //                           &Context);
-        StatInfInstrStmtPrinter P(Out, nullptr, SubPolicy, Indentation, "\n", &Context, EnableStructuralAnalysis, EnableTemporalAnalysis);
+        StatInfInstrStmtPrinter P(Out, this, nullptr, SubPolicy, Indentation, "\n", &Context, EnableStructuralAnalysis, EnableTemporalAnalysis);
         if(D->getName() == "main")
           P.SetEnterMainFunction();
-        if(callgraph->getNode(D))
+
+        if(callgraph && (callgraph->getNode(D) || callgraph->getNode(D->getFirstDecl()) || callgraph->getNode(D->getCanonicalDecl())))
           P.SetEnableInstrumentation();
         if(D->getName() == entrypoint_func_name.str())
           P.SetEnterEntryPointFunc();
@@ -724,6 +732,10 @@ void StatInfInstrDeclPrinter::VisitLabelDecl(LabelDecl *D) {
 }
 
 void StatInfInstrDeclPrinter::VisitVarDecl(VarDecl *D) {
+  // If we don't want the type and other specifiers, and if there not initialiser, we don't want to print the variable alone
+  if(Policy.SuppressSpecifiers && !D->getInit())
+    return;
+
   prettyPrintPragmas(D);
 
   QualType T = D->getTypeSourceInfo()
@@ -734,6 +746,10 @@ void StatInfInstrDeclPrinter::VisitVarDecl(VarDecl *D) {
     StorageClass SC = D->getStorageClass();
     if (SC != SC_None)
       Out << VarDecl::getStorageClassSpecifierString(SC) << " ";
+
+    for(std::string str : D->getExtraTIKw()) {
+      Out << str << " ";
+    }
 
     switch (D->getTSCSpec()) {
     case TSCS_unspecified:
@@ -1679,4 +1695,40 @@ void StatInfInstrDeclPrinter::VisitNonTypeTemplateParmDecl(
   }
 }
 
+void StatInfInstrDeclPrinter::printGroup(Decl** Begin, unsigned NumDecls,
+                      raw_ostream &Out, const PrintingPolicy &pol,
+                      unsigned Indentation) {
+
+  PrintingPolicy bk(Policy);
+  Policy = pol;
+
+  if (NumDecls == 1) {
+    Visit(*Begin);
+    Policy = bk;
+    return;
+  }
+
+  Decl** End = Begin + NumDecls;
+  TagDecl* TD = dyn_cast<TagDecl>(*Begin);
+  if (TD)
+    ++Begin;
+
+  bool isFirst = true;
+  for ( ; Begin != End; ++Begin) {
+    if (isFirst) {
+      // if(TD)
+      //   SubPolicy.IncludeTagDefinition = true;
+      // SubPolicy.SuppressSpecifiers = false;
+      isFirst = false;
+    } 
+    else {
+      if (!isFirst) Out << ", ";
+      Policy.IncludeTagDefinition = false;
+      Policy.SuppressSpecifiers = true;
+    }
+    Visit(*Begin);
+  }
+
+  Policy = bk;
+}
 } //namespace

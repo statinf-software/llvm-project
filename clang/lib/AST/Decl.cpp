@@ -2057,8 +2057,12 @@ VarDecl::VarDecl(Kind DK, ASTContext &C, DeclContext *DC,
 
 VarDecl *VarDecl::Create(ASTContext &C, DeclContext *DC, SourceLocation StartL,
                          SourceLocation IdL, const IdentifierInfo *Id,
-                         QualType T, TypeSourceInfo *TInfo, StorageClass S) {
-  return new (C, DC) VarDecl(Var, C, DC, StartL, IdL, Id, T, TInfo, S);
+                         QualType T, TypeSourceInfo *TInfo, StorageClass S, 
+                         const std::vector<std::string> &extra_TI_kw) {
+  VarDecl *v = new (C, DC) VarDecl(Var, C, DC, StartL, IdL, Id, T, TInfo, S);
+  for(std::string kw : extra_TI_kw)
+    v->addExtraTIKw(kw);
+  return v;
 }
 
 VarDecl *VarDecl::CreateDeserialized(ASTContext &C, unsigned ID) {
@@ -4990,7 +4994,8 @@ ImplicitParamDecl *ImplicitParamDecl::CreateDeserialized(ASTContext &C,
 FunctionDecl *
 FunctionDecl::Create(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
                      const DeclarationNameInfo &NameInfo, QualType T,
-                     TypeSourceInfo *TInfo, StorageClass SC, bool UsesFPIntrin,
+                     TypeSourceInfo *TInfo, StorageClass SC, 
+                     const std::vector<std::string> &extra_TI_kw, bool UsesFPIntrin,
                      bool isInlineSpecified, bool hasWrittenPrototype,
                      ConstexprSpecKind ConstexprKind,
                      Expr *TrailingRequiresClause) {
@@ -4998,6 +5003,8 @@ FunctionDecl::Create(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
       Function, C, DC, StartLoc, NameInfo, T, TInfo, SC, UsesFPIntrin,
       isInlineSpecified, ConstexprKind, TrailingRequiresClause);
   New->setHasWrittenPrototype(hasWrittenPrototype);
+  for(std::string kw : extra_TI_kw)
+    New->addExtraTIKw(kw);
   return New;
 }
 

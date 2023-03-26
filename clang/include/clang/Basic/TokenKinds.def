@@ -331,7 +331,6 @@ KEYWORD(__func__                    , KEYALL)
 KEYWORD(__objc_yes                  , KEYALL)
 KEYWORD(__objc_no                   , KEYALL)
 
-
 // C++ 2.11p1: Keywords.
 KEYWORD(asm                         , KEYCXX|KEYGNU)
 KEYWORD(bool                        , BOOLSUPPORT)
@@ -926,6 +925,15 @@ ANNOTATION(module_end)
 // Annotation for a header_name token that has been looked up and transformed
 // into the name of a header unit.
 ANNOTATION(header_unit)
+
+// Texas Instrument
+KEYWORD(interrupt                   , KEYALL)
+KEYWORD(cregister                   , KEYALL)
+KEYWORD(reentrant                   , KEYALL)
+KEYWORD(trap                        , KEYALL)
+ALIAS("__interrupt" , interrupt     , KEYALL)
+ALIAS("__cregister", cregister      , KEYALL)
+ALIAS("__restrict" , restrict       , KEYALL)
 
 #undef PRAGMA_ANNOTATION
 #undef ANNOTATION

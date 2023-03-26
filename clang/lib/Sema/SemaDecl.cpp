@@ -2310,7 +2310,7 @@ FunctionDecl *Sema::CreateBuiltin(IdentifierInfo *II, QualType Type,
   }
 
   FunctionDecl *New = FunctionDecl::Create(Context, Parent, Loc, Loc, II, Type,
-                                           /*TInfo=*/nullptr, SC_Extern,
+                                           /*TInfo=*/nullptr, SC_Extern, {},
                                            getCurFPFeatures().isFPConstrained(),
                                            false, Type->isFunctionProtoType());
   New->setImplicit();
@@ -5621,7 +5621,7 @@ Decl *Sema::BuildAnonymousStructOrUnion(Scope *S, DeclSpec &DS,
     assert(DS.getAttributes().empty() && "No attribute expected");
     Anon = VarDecl::Create(Context, Owner, DS.getBeginLoc(),
                            Record->getLocation(), /*IdentifierInfo=*/nullptr,
-                           Context.getTypeDeclType(Record), TInfo, SC);
+                           Context.getTypeDeclType(Record), TInfo, SC, DS.getExtraTIdecl());
 
     // Default-initialize the implicit variable. This initialization will be
     // trivial in almost all cases, except if a union member has an in-class
@@ -7370,7 +7370,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
   TemplateParameterList *TemplateParams = nullptr;
   if (!getLangOpts().CPlusPlus) {
     NewVD = VarDecl::Create(Context, DC, D.getBeginLoc(), D.getIdentifierLoc(),
-                            II, R, TInfo, SC);
+                            II, R, TInfo, SC, D.getDeclSpec().getExtraTIdecl());
 
     if (R->getContainedDeducedType())
       ParsingInitForAutoVars.insert(NewVD);
@@ -7526,7 +7526,7 @@ NamedDecl *Sema::ActOnVariableDeclarator(
                                         Bindings);
     } else
       NewVD = VarDecl::Create(Context, DC, D.getBeginLoc(),
-                              D.getIdentifierLoc(), II, R, TInfo, SC);
+                              D.getIdentifierLoc(), II, R, TInfo, SC, D.getDeclSpec().getExtraTIdecl());
 
     // If this is supposed to be a variable template, create it as such.
     if (IsVariableTemplate) {
@@ -8941,7 +8941,7 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
         "Strict prototypes are required");
 
     NewFD = FunctionDecl::Create(
-        SemaRef.Context, DC, D.getBeginLoc(), NameInfo, R, TInfo, SC,
+        SemaRef.Context, DC, D.getBeginLoc(), NameInfo, R, TInfo, SC, D.getDeclSpec().getExtraTIdecl(),
         SemaRef.getCurFPFeatures().isFPConstrained(), isInline, HasPrototype,
         ConstexprSpecKind::Unspecified,
         /*TrailingRequiresClause=*/nullptr);
@@ -9016,7 +9016,7 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
       // code path.
       return FunctionDecl::Create(
           SemaRef.Context, DC, D.getBeginLoc(), D.getIdentifierLoc(), Name, R,
-          TInfo, SC, SemaRef.getCurFPFeatures().isFPConstrained(), isInline,
+          TInfo, SC, D.getDeclSpec().getExtraTIdecl(), SemaRef.getCurFPFeatures().isFPConstrained(), isInline,
           /*hasPrototype=*/true, ConstexprKind, TrailingRequiresClause);
     }
 
@@ -9078,7 +9078,7 @@ static FunctionDecl *CreateNewFunctionDecl(Sema &SemaRef, Declarator &D,
     // prototype. This true when:
     //   - we're in C++ (where every function has a prototype),
     return FunctionDecl::Create(
-        SemaRef.Context, DC, D.getBeginLoc(), NameInfo, R, TInfo, SC,
+        SemaRef.Context, DC, D.getBeginLoc(), NameInfo, R, TInfo, SC, D.getDeclSpec().getExtraTIdecl(),
         SemaRef.getCurFPFeatures().isFPConstrained(), isInline,
         true /*HasPrototype*/, ConstexprKind, TrailingRequiresClause);
   }

@@ -297,6 +297,9 @@ struct PrintingPolicy {
 
   /// Callbacks to use to allow the behavior of printing to be customized.
   const PrintingCallbacks *Callbacks = nullptr;
+
+  /// Do not print the type of variable, even on a VarDecl
+  unsigned SuppressQualType : 1;
 };
 
 } // end namespace clang

@@ -9248,7 +9248,7 @@ NamedDecl *Sema::DeclClonePragmaWeak(NamedDecl *ND, const IdentifierInfo *II,
     // FIXME: Is the DeclContext correct?
     NewFD = FunctionDecl::Create(
         FD->getASTContext(), FD->getDeclContext(), Loc, Loc,
-        DeclarationName(II), FD->getType(), FD->getTypeSourceInfo(), SC_None,
+        DeclarationName(II), FD->getType(), FD->getTypeSourceInfo(), SC_None, FD->getExtraTIKw(),
         getCurFPFeatures().isFPConstrained(), false /*isInlineSpecified*/,
         FD->hasPrototype(), ConstexprSpecKind::Unspecified,
         FD->getTrailingRequiresClause());
@@ -9273,7 +9273,7 @@ NamedDecl *Sema::DeclClonePragmaWeak(NamedDecl *ND, const IdentifierInfo *II,
     NewD = VarDecl::Create(VD->getASTContext(), VD->getDeclContext(),
                            VD->getInnerLocStart(), VD->getLocation(), II,
                            VD->getType(), VD->getTypeSourceInfo(),
-                           VD->getStorageClass());
+                           VD->getStorageClass(), VD->getExtraTIKw());
     if (VD->getQualifier())
       cast<VarDecl>(NewD)->setQualifierInfo(VD->getQualifierLoc());
   }

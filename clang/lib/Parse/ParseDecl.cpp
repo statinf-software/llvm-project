@@ -3634,7 +3634,14 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
         if (TemplateId->hasInvalidArgs())
           TemplateId = nullptr;
 
-        if (NextToken().is(tok::identifier)) {
+        // Any of the following tokens are likely the start of the user
+        // forgetting 'auto' or 'decltype(auto)', so diagnose.
+        // Note: if updating this list, please make sure we update
+        // isCXXDeclarationSpecifier's check for IsPlaceholderSpecifier to have
+        // a matching list.
+        if (NextToken().isOneOf(tok::identifier, tok::kw_const,
+                                tok::kw_volatile, tok::kw_restrict, tok::amp,
+                                tok::ampamp, tok::kw_cregister)) {
           Diag(Loc, diag::err_placeholder_expected_auto_or_decltype_auto)
               << FixItHint::CreateInsertion(NextToken().getLocation(), "auto");
           // Attempt to continue as if 'auto' was placed here.
@@ -3787,6 +3794,18 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
       isInvalid = DS.SetStorageClassSpec(Actions, DeclSpec::SCS_static, Loc,
                                          PrevSpec, DiagID, Policy);
       isStorageClass = true;
+      break;
+    case tok::kw_interrupt:
+      DS.addExtraTIdecl("__interrupt");
+      break;
+    case tok::kw_cregister:
+      DS.addExtraTIdecl("__cregister");
+      break;
+    case tok::kw_reentrant:
+      DS.addExtraTIdecl("reentrant");
+      break;
+    case tok::kw_trap:
+      DS.addExtraTIdecl("trap");
       break;
     case tok::kw_auto:
       if (getLangOpts().CPlusPlus11) {
@@ -5233,6 +5252,9 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw_restrict:
   case tok::kw__Sat:
 
+  // Texas Instruement
+  case tok::kw_cregister:
+
     // Debugger support.
   case tok::kw___unknown_anytype:
 
@@ -5402,6 +5424,9 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw_volatile:
   case tok::kw_restrict:
   case tok::kw__Sat:
+
+  //Texas Instrument
+  case tok::kw_cregister:
 
     // function-specifier
   case tok::kw_inline:
@@ -5711,6 +5736,20 @@ void Parser::ParseTypeQualifierListOpt(
         Diag(Tok, diag::ext_c11_feature) << Tok.getName();
       isInvalid = DS.SetTypeQual(DeclSpec::TQ_atomic, Loc, PrevSpec, DiagID,
                                  getLangOpts());
+      break;
+
+    // Texas Instrument
+    case tok::kw_interrupt:
+      DS.addExtraTIdecl("__interrupt");
+      break;
+    case tok::kw_cregister:
+      DS.addExtraTIdecl("__cregister");
+      break;
+    case tok::kw_reentrant:
+      DS.addExtraTIdecl("reentrant");
+      break;
+    case tok::kw_trap:
+      DS.addExtraTIdecl("trap");
       break;
 
     // OpenCL qualifiers:

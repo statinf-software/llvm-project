@@ -6445,7 +6445,7 @@ static FunctionDecl *rewriteBuiltinFunctionDecl(Sema *Sema, ASTContext &Context,
   FunctionDecl *OverloadDecl = FunctionDecl::Create(
       Context, Parent, FDecl->getLocation(), FDecl->getLocation(),
       FDecl->getIdentifier(), OverloadTy,
-      /*TInfo=*/nullptr, SC_Extern, Sema->getCurFPFeatures().isFPConstrained(),
+      /*TInfo=*/nullptr, SC_Extern, {}, Sema->getCurFPFeatures().isFPConstrained(),
       false,
       /*hasPrototype=*/true);
   SmallVector<ParmVarDecl*, 16> Params;
@@ -20426,7 +20426,7 @@ ExprResult RebuildUnknownAnyExpr::resolveDecl(Expr *E, ValueDecl *VD) {
         FunctionDecl *NewFD = FunctionDecl::Create(
             S.Context, FD->getDeclContext(), Loc, Loc,
             FD->getNameInfo().getName(), DestType, FD->getTypeSourceInfo(),
-            SC_None, S.getCurFPFeatures().isFPConstrained(),
+            SC_None, {}, S.getCurFPFeatures().isFPConstrained(),
             false /*isInlineSpecified*/, FD->hasPrototype(),
             /*ConstexprKind*/ ConstexprSpecKind::Unspecified);
 

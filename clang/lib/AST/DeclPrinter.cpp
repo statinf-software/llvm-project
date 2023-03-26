@@ -617,6 +617,10 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
       llvm_unreachable("invalid for functions");
     }
 
+    for(std::string str : D->getExtraTIKw()) {
+      Out << str << " ";
+    }
+
     if (D->isInlineSpecified())  Out << "inline ";
     if (D->isVirtualAsWritten()) Out << "virtual ";
     if (D->isModulePrivate())    Out << "__module_private__ ";
@@ -864,6 +868,10 @@ void DeclPrinter::VisitVarDecl(VarDecl *D) {
     StorageClass SC = D->getStorageClass();
     if (SC != SC_None)
       Out << VarDecl::getStorageClassSpecifierString(SC) << " ";
+
+    for(std::string str : D->getExtraTIKw()) {
+      Out << str << " ";
+    }
 
     switch (D->getTSCSpec()) {
     case TSCS_unspecified:

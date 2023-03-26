@@ -3694,7 +3694,7 @@ CodeGenFunction::GenerateObjCAtomicSetterCopyHelperFunction(
 
   FunctionDecl *FD = FunctionDecl::Create(
       C, C.getTranslationUnitDecl(), SourceLocation(), SourceLocation(), II,
-      FunctionTy, nullptr, SC_Static, false, false, false);
+      FunctionTy, nullptr, SC_Static, {}, false, false, false);
 
   FunctionArgList args;
   ParmVarDecl *Params[2];
@@ -3784,7 +3784,7 @@ CodeGenFunction::GenerateObjCAtomicGetterCopyHelperFunction(
 
   FunctionDecl *FD = FunctionDecl::Create(
       C, C.getTranslationUnitDecl(), SourceLocation(), SourceLocation(), II,
-      FunctionTy, nullptr, SC_Static, false, false, false);
+      FunctionTy, nullptr, SC_Static, {}, false, false, false);
 
   FunctionArgList args;
   ParmVarDecl *Params[2];

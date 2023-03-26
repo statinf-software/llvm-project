@@ -68,8 +68,15 @@ public:
 
   void addCalledDecl(Decl *D, Expr *CallExpr) {
     if (G->includeCalleeInGraph(D)) {
+      bool shouldVisitFurther = G->shouldVisitRecursively(D);
       CallGraphNode *CalleeNode = G->getOrInsertNode(D);
       CallerNode->addCallee({CalleeNode, CallExpr});
+
+      FunctionDecl *f = dyn_cast<FunctionDecl>(D);
+      if(G->shouldVisitRecursively() && shouldVisitFurther && D->hasBody()) {
+        CGBuilder cg(G, CalleeNode);
+        cg.Visit(D->getBody());
+      }
     }
   }
 
@@ -213,6 +220,10 @@ CallGraphNode *CallGraph::getOrInsertNode(Decl *F) {
   if (F)
     Root->addCallee({Node.get(), /*Call=*/nullptr});
   return Node.get();
+}
+
+bool CallGraph::shouldVisitRecursively(Decl *D) {
+  return ! FunctionMap.count(D);
 }
 
 void CallGraph::print(raw_ostream &OS) const {

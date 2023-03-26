@@ -12,7 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/StatInfInstrStmtPrinter.h"
-
+#include "clang/AST/StatInfInstrDeclPrinter.h"
 namespace clang {
 
 //===----------------------------------------------------------------------===//
@@ -59,15 +59,17 @@ void StatInfInstrStmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
     Indent(Policy.Indentation) << "STATINF_ENTER_ELSE();" << NL;
 
   for (auto *I : Node->body()) {
+    Policy.SuppressInitializers = true;
     if(isa<DeclStmt>(I))
       PrintStmt(I);
   }
+  Policy.SuppressInitializers = false;
 
-  
   for (auto *I : Node->body()) {
-    if(!isa<DeclStmt>(I))
-      PrintStmt(I);
+    Policy.SuppressSpecifiers = true;
+    PrintStmt(I);
   }
+  Policy.SuppressSpecifiers = false;
 
   if(EnableTemporalAnalysis && enable_instrumentation && loc_enter_function_body) {
     if(!isa<ReturnStmt>(Node->body_back()))
@@ -149,11 +151,11 @@ void StatInfInstrStmtPrinter::PrintRawDecl(Decl *D) {
 
 void StatInfInstrStmtPrinter::PrintRawDeclStmt(const DeclStmt *S) {
   SmallVector<Decl *, 2> Decls(S->decls());
-  Decl::printGroup(Decls.data(), Decls.size(), OS, Policy, IndentLevel);
+  declprinter->printGroup(Decls.data(), Decls.size(), OS, Policy, IndentLevel);
 }
 
 void StatInfInstrStmtPrinter::VisitNullStmt(NullStmt *Node) {
-  Indent() << ";" << NL;
+  //Indent() << ";" << NL;
 }
 
 void StatInfInstrStmtPrinter::VisitDeclStmt(DeclStmt *Node) {
@@ -366,6 +368,9 @@ void StatInfInstrStmtPrinter::VisitDoStmt(DoStmt *Node) {
 }
 
 void StatInfInstrStmtPrinter::VisitForStmt(ForStmt *Node) {
+  bool bk = Policy.SuppressSpecifiers;
+  
+  Policy.SuppressSpecifiers = false;
   Indent() << "for (";
   if (Node->getInit())
     PrintInitStmt(Node->getInit(), 5);
@@ -379,6 +384,9 @@ void StatInfInstrStmtPrinter::VisitForStmt(ForStmt *Node) {
     PrintExpr(Node->getInc());
   }
   OS << ")";
+
+  Policy.SuppressSpecifiers = bk;
+
   if(isa<CompoundStmt>(Node->getBody())) {
     SetEnterLoopBody();
     PrintControlledStmt(Node->getBody());
@@ -457,15 +465,46 @@ void StatInfInstrStmtPrinter::VisitBreakStmt(BreakStmt *Node) {
   if (Policy.IncludeNewlines) OS << NL;
 }
 
+static bool isLiteral(Expr *e) {
+  return isa<StringLiteral>(e) || 
+  isa<IntegerLiteral>(e) ||
+  isa<FixedPointLiteral>(e) ||
+  isa<CharacterLiteral>(e) ||
+  isa<FloatingLiteral>(e) ||
+  isa<ImaginaryLiteral>(e);
+}
+
 void StatInfInstrStmtPrinter::VisitReturnStmt(ReturnStmt *Node) {
+  ImplicitCastExpr *tmp = dyn_cast<ImplicitCastExpr>(Node->getRetValue());
+  bool retvaladded = false;
+
+  // To be sure to include any code present in the return statement in the measurment
+  // Create a variable __retval__ to place the result of the computation 
+  if(Node->getRetValue() &&
+      !isLiteral(Node->getRetValue()) &&
+      (!tmp ||
+      (tmp && !isa<DeclRefExpr>(tmp->getSubExpr())))) {
+    Indent() << "";
+    declprinter->printDeclType(Node->getRetValue()->getType(), "__retval__");
+    OS << " = ";
+    PrintExpr(Node->getRetValue());
+    OS << ";" << NL;
+    retvaladded = true;
+  }
+
   if(EnableTemporalAnalysis && enable_instrumentation)
     Indent() << "STATINF_EXIT_FUNCTION();" << NL; 
   if(EnableStructuralAnalysis && ret_entry_point_func) //no need to check if instrumentation is enable, this return must be in the entry point
     Indent() << "STATINF_END_MEASUREMENT();" << NL;
+
   Indent() << "return";
+
   if (Node->getRetValue()) {
     OS << " ";
-    PrintExpr(Node->getRetValue());
+    if(retvaladded)
+      OS << "__retval__";
+    else
+      PrintExpr(Node->getRetValue());
   }
   OS << ";";
   if (Policy.IncludeNewlines) OS << NL;

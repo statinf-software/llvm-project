@@ -555,6 +555,7 @@ namespace clang {
     ExpectedDecl VisitBuiltinTemplateDecl(BuiltinTemplateDecl *D);
     ExpectedDecl
     VisitLifetimeExtendedTemporaryDecl(LifetimeExtendedTemporaryDecl *D);
+    ExpectedDecl VisitTopLevelStmtDecl(TopLevelStmtDecl *S);
 
     Expected<ObjCTypeParamList *>
     ImportObjCTypeParamList(ObjCTypeParamList *list);
@@ -611,6 +612,8 @@ namespace clang {
     ExpectedStmt VisitObjCAtSynchronizedStmt(ObjCAtSynchronizedStmt *S);
     ExpectedStmt VisitObjCAtThrowStmt(ObjCAtThrowStmt *S);
     ExpectedStmt VisitObjCAutoreleasePoolStmt(ObjCAutoreleasePoolStmt *S);
+
+    ExpectedStmt VisitPragmaLiebherrStmt(PragmaLiebherrStmt *S);
 
     // Importing expressions
     ExpectedStmt VisitExpr(Expr *E);
@@ -3565,7 +3568,7 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   } else {
     if (GetImportedOrCreateDecl(
             ToFunction, D, Importer.getToContext(), DC, ToInnerLocStart,
-            NameInfo, T, TInfo, D->getStorageClass(), D->UsesFPIntrin(),
+            NameInfo, T, TInfo, D->getStorageClass(), D->getExtraTIKw(), D->UsesFPIntrin(),
             D->isInlineSpecified(), D->hasWrittenPrototype(),
             D->getConstexprKind(), TrailingRequiresClause))
       return ToFunction;
@@ -4165,7 +4168,7 @@ ExpectedDecl ASTNodeImporter::VisitVarDecl(VarDecl *D) {
     if (GetImportedOrCreateDecl(ToVar, D, Importer.getToContext(), DC,
                                 ToInnerLocStart, Loc,
                                 Name.getAsIdentifierInfo(), ToType,
-                                ToTypeSourceInfo, D->getStorageClass()))
+                                ToTypeSourceInfo, D->getStorageClass(), D->getExtraTIKw()))
       return ToVar;
   }
 
@@ -4906,6 +4909,33 @@ ExpectedDecl ASTNodeImporter::VisitUsingPackDecl(UsingPackDecl *D) {
   addDeclToContexts(D, ToUsingPack);
 
   return ToUsingPack;
+}
+
+ExpectedDecl ASTNodeImporter::VisitTopLevelStmtDecl(TopLevelStmtDecl *D) {
+
+  //Todo: create a "equals()" into DeclBase, Stmt to check equivalence
+  // the containtsDecl only checks pointer values
+  auto foP = dyn_cast<PragmaLiebherrStmt>(D->getStmt());
+  for(Decl *cd : Importer.getToContext().getTranslationUnitDecl()->decls()) {
+    if(auto tcd = dyn_cast<TopLevelStmtDecl>(cd)) {
+      auto toP = dyn_cast<PragmaLiebherrStmt>(tcd->getStmt());
+      if(foP->getPragmaLbl()->getString() == toP->getPragmaLbl()->getString() && 
+        foP->getRawParams()->getString() == toP->getRawParams()->getString()) {
+          auto locOrErr = import(toP->getPragmaLoc());
+          if(!locOrErr)
+            return locOrErr.takeError();
+          return TopLevelStmtDecl::Create(Importer.getToContext(), new (Importer.getToContext()) NullStmt(locOrErr.get(), false));
+      }
+    }
+  }
+
+  auto ToTopDeclStmtOrErr = Importer.Import(D->getStmt());
+  if(!ToTopDeclStmtOrErr)
+    return ToTopDeclStmtOrErr.takeError();
+
+  TopLevelStmtDecl *ND = TopLevelStmtDecl::Create(Importer.getToContext(), ToTopDeclStmtOrErr.get());
+  addDeclToContexts(D, ND);
+  return ND;
 }
 
 ExpectedDecl ASTNodeImporter::VisitUnresolvedUsingValueDecl(
@@ -6593,6 +6623,22 @@ ExpectedStmt ASTNodeImporter::VisitReturnStmt(ReturnStmt *S) {
 
   return ReturnStmt::Create(Importer.getToContext(), ToReturnLoc, ToRetValue,
                             ToNRVOCandidate);
+}
+
+ExpectedStmt ASTNodeImporter::VisitPragmaLiebherrStmt(PragmaLiebherrStmt *S) {
+
+  auto ToStmtLocOrErr = import(S->getBeginLoc());
+  if (!ToStmtLocOrErr)
+    return ToStmtLocOrErr.takeError();
+
+  ExpectedStmt ToLblOrErr = Importer.Import(S->getPragmaLbl());
+  if(!ToLblOrErr)
+    return ToLblOrErr.takeError();
+  ExpectedStmt ToRPOrErr = Importer.Import(S->getRawParams());
+  if(!ToRPOrErr)
+    return ToRPOrErr.takeError();
+  
+  return PragmaLiebherrStmt::Create(Importer.getToContext(), S->getPragmaLoc(), dyn_cast<StringLiteral>(ToLblOrErr.get()), dyn_cast<StringLiteral>(ToRPOrErr.get()));
 }
 
 ExpectedStmt ASTNodeImporter::VisitCXXCatchStmt(CXXCatchStmt *S) {

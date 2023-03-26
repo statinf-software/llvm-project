@@ -816,6 +816,14 @@ public:
   ///
   /// Only tag declspecs can stand alone.
   bool isMissingDeclaratorOk();
+
+  // Roughly added Texas Instrument keywords
+  std::vector<std::string> extra_ti_decl;
+  void addExtraTIdecl(std::string kw) {
+    extra_ti_decl.push_back(kw);
+  }
+  std::vector<std::string> getExtraTIdecl() { return extra_ti_decl; }
+  std::vector<std::string> getExtraTIdecl() const { return extra_ti_decl; }
 };
 
 /// Captures information about "declaration specifiers" specific to

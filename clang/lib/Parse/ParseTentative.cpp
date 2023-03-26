@@ -845,7 +845,7 @@ Parser::TPResult Parser::TryParsePtrOperatorSeq() {
       while (Tok.isOneOf(tok::kw_const, tok::kw_volatile, tok::kw_restrict,
                          tok::kw__Nonnull, tok::kw__Nullable,
                          tok::kw__Nullable_result, tok::kw__Null_unspecified,
-                         tok::kw__Atomic))
+                         tok::kw__Atomic, tok::kw_cregister))
         ConsumeToken();
     } else {
       return TPResult::True;
@@ -1252,12 +1252,30 @@ Parser::isCXXDeclarationSpecifier(Parser::TPResult BracedCastResult,
     // We have a placeholder-constraint (we check for 'auto' or 'decltype' to
     // distinguish 'C<int>;' from 'C<int> auto c = 1;')
     return TemplateId->Kind == TNK_Concept_template &&
-        GetLookAheadToken(Lookahead + 1).isOneOf(tok::kw_auto, tok::kw_decltype,
-            // If we have an identifier here, the user probably forgot the
-            // 'auto' in the placeholder constraint, e.g. 'C<int> x = 2;'
-            // This will be diagnosed nicely later, so disambiguate as a
-            // declaration.
-            tok::identifier);
+           (GetLookAheadToken(Lookahead + 1)
+                .isOneOf(tok::kw_auto, tok::kw_decltype,
+                         // If we have an identifier here, the user probably
+                         // forgot the 'auto' in the placeholder constraint,
+                         // e.g. 'C<int> x = 2;' This will be diagnosed nicely
+                         // later, so disambiguate as a declaration.
+                         tok::identifier,
+                         // CVR qualifierslikely the same situation for the
+                         // user, so let this be diagnosed nicely later. We
+                         // cannot handle references here, as `C<int> & Other`
+                         // and `C<int> && Other` are both legal.
+                         tok::kw_const, tok::kw_volatile, tok::kw_restrict,
+                         tok::kw_cregister) ||
+            // While `C<int> && Other` is legal, doing so while not specifying a
+            // template argument is NOT, so see if we can fix up in that case at
+            // minimum. Concepts require at least 1 template parameter, so we
+            // can count on the argument count.
+            // FIXME: In the future, we migth be able to have SEMA look up the
+            // declaration for this concept, and see how many template
+            // parameters it has.  If the concept isn't fully specified, it is
+            // possibly a situation where we want deduction, such as:
+            // `BinaryConcept<int> auto f = bar();`
+            (TemplateId->NumArgs == 0 &&
+             GetLookAheadToken(Lookahead + 1).isOneOf(tok::amp, tok::ampamp)));
   };
   switch (Tok.getKind()) {
   case tok::identifier: {
@@ -1441,6 +1459,10 @@ Parser::isCXXDeclarationSpecifier(Parser::TPResult BracedCastResult,
   case tok::kw__Nullable_result:
   case tok::kw__Null_unspecified:
   case tok::kw___kindof:
+    return TPResult::True;
+
+  //Texas Instrument
+  case tok::kw_cregister:
     return TPResult::True;
 
     // Borland
@@ -1848,7 +1870,7 @@ bool Parser::isCXXFunctionDeclarator(bool *IsAmbiguous) {
       const Token &Next = NextToken();
       if (Next.isOneOf(tok::amp, tok::ampamp, tok::kw_const, tok::kw_volatile,
                        tok::kw_throw, tok::kw_noexcept, tok::l_square,
-                       tok::l_brace, tok::kw_try, tok::equal, tok::arrow) ||
+                       tok::l_brace, tok::kw_try, tok::equal, tok::arrow, tok::kw_cregister) ||
           isCXX11VirtSpecifier(Next))
         // The next token cannot appear after a constructor-style initializer,
         // and can appear next in a function definition. This must be a function
@@ -2019,7 +2041,7 @@ Parser::TPResult Parser::TryParseFunctionDeclarator() {
 
   // cv-qualifier-seq
   while (Tok.isOneOf(tok::kw_const, tok::kw_volatile, tok::kw___unaligned,
-                     tok::kw_restrict))
+                     tok::kw_restrict, tok::kw_cregister))
     ConsumeToken();
 
   // ref-qualifier[opt]
