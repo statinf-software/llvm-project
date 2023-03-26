@@ -122,5 +122,9 @@ namespace clang {
     void prettyPrintAttributes(Decl *D);
     void prettyPrintPragmas(Decl *D);
     void printDeclType(QualType T, StringRef DeclName, bool Pack = false);
+
+    void printGroup(Decl** Begin, unsigned NumDecls,
+                      raw_ostream &Out, const PrintingPolicy &Policy,
+                      unsigned Indentation);
   };
 }

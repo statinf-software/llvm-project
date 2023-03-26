@@ -63,8 +63,10 @@
 
 namespace clang {
 
+  class StatInfInstrDeclPrinter;
   class StatInfInstrStmtPrinter : public StmtVisitor<StatInfInstrStmtPrinter> {
     raw_ostream &OS;
+    StatInfInstrDeclPrinter *declprinter;
     unsigned IndentLevel;
     PrinterHelper* Helper;
     PrintingPolicy Policy;
@@ -83,11 +85,11 @@ namespace clang {
     bool ret_entry_point_func = false; // keep the state of the entrypoint for return instruction
 
   public:
-    StatInfInstrStmtPrinter(raw_ostream &os, PrinterHelper *helper,
+    StatInfInstrStmtPrinter(raw_ostream &os, StatInfInstrDeclPrinter *dp, PrinterHelper *helper,
                 const PrintingPolicy &Policy, unsigned Indentation = 0,
                 StringRef NL = "\n", const ASTContext *Context = nullptr,
                 bool esa=true, bool eta=true)
-        : OS(os), IndentLevel(Indentation), Helper(helper), Policy(Policy),
+        : OS(os), declprinter(dp), IndentLevel(Indentation), Helper(helper), Policy(Policy),
           NL(NL), Context(Context), EnableStructuralAnalysis(esa), EnableTemporalAnalysis(eta) {}
 
     void PrintStmt(Stmt *S) { PrintStmt(S, Policy.Indentation); }

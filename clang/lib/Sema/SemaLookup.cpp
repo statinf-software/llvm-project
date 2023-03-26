@@ -862,7 +862,7 @@ static void InsertOCLBuiltinDeclarationsFromTable(Sema &S, LookupResult &LR,
 
     for (const auto &FTy : FunctionList) {
       NewOpenCLBuiltin = FunctionDecl::Create(
-          Context, Parent, Loc, Loc, II, FTy, /*TInfo=*/nullptr, SC_Extern,
+          Context, Parent, Loc, Loc, II, FTy, /*TInfo=*/nullptr, SC_Extern, {},
           S.getCurFPFeatures().isFPConstrained(), false,
           FTy->isFunctionProtoType());
       NewOpenCLBuiltin->setImplicit();

@@ -48,6 +48,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace clang {
 
@@ -783,6 +784,9 @@ class DeclaratorDecl : public ValueDecl {
   ExtInfo *getExtInfo() { return DeclInfo.get<ExtInfo*>(); }
   const ExtInfo *getExtInfo() const { return DeclInfo.get<ExtInfo*>(); }
 
+  // Texas Instrument
+  std::vector<std::string> extra_TI_kw;
+
 protected:
   DeclaratorDecl(Kind DK, DeclContext *DC, SourceLocation L,
                  DeclarationName N, QualType T, TypeSourceInfo *TInfo,
@@ -872,6 +876,10 @@ public:
   static bool classofKind(Kind K) {
     return K >= firstDeclarator && K <= lastDeclarator;
   }
+
+  void addExtraTIKw(std::string kw) { extra_TI_kw.push_back(kw);}
+  std::vector<std::string> getExtraTIKw() { return extra_TI_kw; }
+  std::vector<std::string> getExtraTIKw() const { return extra_TI_kw; }
 };
 
 /// Structure used to store a statement, the constant value to
@@ -1116,7 +1124,7 @@ public:
   static VarDecl *Create(ASTContext &C, DeclContext *DC,
                          SourceLocation StartLoc, SourceLocation IdLoc,
                          const IdentifierInfo *Id, QualType T,
-                         TypeSourceInfo *TInfo, StorageClass S);
+                         TypeSourceInfo *TInfo, StorageClass S, const std::vector<std::string> &extra_TI_kw={});
 
   static VarDecl *CreateDeserialized(ASTContext &C, unsigned ID);
 
@@ -2094,12 +2102,12 @@ public:
   static FunctionDecl *
   Create(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
          SourceLocation NLoc, DeclarationName N, QualType T,
-         TypeSourceInfo *TInfo, StorageClass SC, bool UsesFPIntrin = false,
+         TypeSourceInfo *TInfo, StorageClass SC, const std::vector<std::string> &extra_TI_kw={}, bool UsesFPIntrin = false,
          bool isInlineSpecified = false, bool hasWrittenPrototype = true,
          ConstexprSpecKind ConstexprKind = ConstexprSpecKind::Unspecified,
          Expr *TrailingRequiresClause = nullptr) {
     DeclarationNameInfo NameInfo(N, NLoc);
-    return FunctionDecl::Create(C, DC, StartLoc, NameInfo, T, TInfo, SC,
+    return FunctionDecl::Create(C, DC, StartLoc, NameInfo, T, TInfo, SC, extra_TI_kw,
                                 UsesFPIntrin, isInlineSpecified,
                                 hasWrittenPrototype, ConstexprKind,
                                 TrailingRequiresClause);
@@ -2108,7 +2116,7 @@ public:
   static FunctionDecl *
   Create(ASTContext &C, DeclContext *DC, SourceLocation StartLoc,
          const DeclarationNameInfo &NameInfo, QualType T, TypeSourceInfo *TInfo,
-         StorageClass SC, bool UsesFPIntrin, bool isInlineSpecified,
+         StorageClass SC, const std::vector<std::string> &extra_TI_kw, bool UsesFPIntrin, bool isInlineSpecified,
          bool hasWrittenPrototype, ConstexprSpecKind ConstexprKind,
          Expr *TrailingRequiresClause);
 

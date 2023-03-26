@@ -2473,7 +2473,7 @@ void RewriteModernObjC::SynthMsgSendStretFunctionDecl() {
                                                   SourceLocation(),
                                                   SourceLocation(),
                                                   msgSendIdent, msgSendType,
-                                                  nullptr, SC_Extern);
+                                                  nullptr, SC_Extern, {});
 }
 
 // SynthMsgSendSuperStretFunctionDecl -
@@ -2490,7 +2490,7 @@ void RewriteModernObjC::SynthMsgSendSuperStretFunctionDecl() {
                                                        SourceLocation(),
                                                        msgSendIdent,
                                                        msgSendType, nullptr,
-                                                       SC_Extern);
+                                                       SC_Extern, {});
 }
 
 // SynthMsgSendFpretFunctionDecl - double objc_msgSend_fpret(id self, SEL op, ...);
@@ -3176,7 +3176,7 @@ Expr *RewriteModernObjC::SynthMsgSendStretCallExpr(FunctionDecl *MsgSendStretFla
   IdentifierInfo *ID = &Context->Idents.get(name);
   FunctionDecl *FD =
       FunctionDecl::Create(*Context, TUDecl, SourceLocation(), SourceLocation(),
-                           ID, FuncType, nullptr, SC_Extern, false, false);
+                           ID, FuncType, nullptr, SC_Extern, {}, false, false);
   DeclRefExpr *DRE = new (Context)
       DeclRefExpr(*Context, FD, false, castType, VK_PRValue, SourceLocation());
   CallExpr *STCE =
@@ -5189,7 +5189,7 @@ FunctionDecl *RewriteModernObjC::SynthBlockInitFunctionDecl(StringRef name) {
   IdentifierInfo *ID = &Context->Idents.get(name);
   QualType FType = Context->getFunctionNoProtoType(Context->VoidPtrTy);
   return FunctionDecl::Create(*Context, TUDecl, SourceLocation(),
-                              SourceLocation(), ID, FType, nullptr, SC_Extern,
+                              SourceLocation(), ID, FType, nullptr, SC_Extern, {},
                               false, false);
 }
 

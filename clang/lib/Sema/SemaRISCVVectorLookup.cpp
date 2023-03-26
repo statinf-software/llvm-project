@@ -372,7 +372,7 @@ void RISCVIntrinsicManagerImpl::CreateRVVIntrinsicDecl(LookupResult &LR,
 
   FunctionDecl *RVVIntrinsicDecl = FunctionDecl::Create(
       Context, Parent, Loc, Loc, II, BuiltinFuncType, /*TInfo=*/nullptr,
-      SC_Extern, S.getCurFPFeatures().isFPConstrained(),
+      SC_Extern, {}, S.getCurFPFeatures().isFPConstrained(),
       /*isInlineSpecified*/ false,
       /*hasWrittenPrototype*/ true);
 
