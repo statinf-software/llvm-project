@@ -329,13 +329,6 @@ struct PPConditionalInfo {
   bool FoundElse;
 };
 
-// Extra information needed for annonation tokens.
-struct PragmaLoopHintInfo {
-  Token PragmaName;
-  Token Option;
-  ArrayRef<Token> Toks;
-};
-
 struct PragmaLiebherrInfo {
   Token PragmaName;
   StringRef PragmaLbl;
