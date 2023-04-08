@@ -773,11 +773,15 @@ void StatInfInstrDeclPrinter::VisitVarDecl(VarDecl *D) {
       T.removeLocalConst();
     }
   }
-
-  printDeclType(T, (isa<ParmVarDecl>(D) && Policy.CleanUglifiedParameters &&
+  StringRef DeclName = (isa<ParmVarDecl>(D) && Policy.CleanUglifiedParameters &&
                     D->getIdentifier())
                        ? D->getIdentifier()->deuglifiedName()
-                       : D->getName());
+                       : D->getName();
+  if(Policy.SuppressQualType && Policy.SuppressSpecifiers)
+    Out << DeclName;
+  else
+    printDeclType(T, DeclName);
+    
   Expr *Init = D->getInit();
   if (!Policy.SuppressInitializers && Init) {
     bool ImplicitInit = false;

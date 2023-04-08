@@ -125,5 +125,7 @@ namespace clang {
     void printGroup(Decl** Begin, unsigned NumDecls,
                       raw_ostream &Out, const PrintingPolicy &Policy,
                       unsigned Indentation);
+
+    void printType(QualType T, PrintingPolicy SubPolicy, Twine PlaceHolder);
   };
 }

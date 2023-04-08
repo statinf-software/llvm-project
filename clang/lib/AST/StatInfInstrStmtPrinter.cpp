@@ -41,6 +41,14 @@ void StatInfInstrStmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
   bool loc_enter_main_function = enter_main_function;
   enter_main_function = false;
 
+  // bool bk_suppress_init = Policy.SuppressInitializers;
+  // for (auto *I : Node->body()) {
+  //   Policy.SuppressInitializers = true;
+  //   if(isa<DeclStmt>(I))
+  //     PrintStmt(I);
+  // }
+  // Policy.SuppressInitializers = bk_suppress_init;
+
   if((EnableStructuralAnalysis || EnableTemporalAnalysis) && loc_enter_main_function)
     Indent(Policy.Indentation) << "STATINF_MAIN_INIT();" << NL;
   
@@ -50,26 +58,21 @@ void StatInfInstrStmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
   if(EnableStructuralAnalysis && enable_instrumentation && loc_enter_loop_body)
     Indent(Policy.Indentation) << "STATINF_ENTER_LOOP();" << NL;
 
-  
   if(EnableStructuralAnalysis && enable_instrumentation && loc_enter_then_body)
     Indent(Policy.Indentation) << "STATINF_ENTER_THEN();" << NL;
 
-  
   if(EnableStructuralAnalysis && enable_instrumentation && loc_enter_else_body)
     Indent(Policy.Indentation) << "STATINF_ENTER_ELSE();" << NL;
 
+  // bool bk_suppress_specif = Policy.SuppressSpecifiers;
+  // bool bk_suppress_type = Policy.SuppressQualType;
   for (auto *I : Node->body()) {
-    Policy.SuppressInitializers = true;
-    if(isa<DeclStmt>(I))
-      PrintStmt(I);
-  }
-  Policy.SuppressInitializers = false;
-
-  for (auto *I : Node->body()) {
-    Policy.SuppressSpecifiers = true;
+    // Policy.SuppressSpecifiers = true;
+    // Policy.SuppressQualType = true;
     PrintStmt(I);
   }
-  Policy.SuppressSpecifiers = false;
+  // Policy.SuppressSpecifiers = bk_suppress_specif;
+  // Policy.SuppressQualType = bk_suppress_type;
 
   if(EnableTemporalAnalysis && enable_instrumentation && loc_enter_function_body) {
     if(!isa<ReturnStmt>(Node->body_back()))
