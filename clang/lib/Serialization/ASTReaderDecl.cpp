@@ -317,6 +317,7 @@ namespace clang {
 
     void VisitDecl(Decl *D);
     void VisitPragmaCommentDecl(PragmaCommentDecl *D);
+    void VisitPragmaTIStmtDecl(PragmaTIStmtDecl *D);
     void VisitPragmaDetectMismatchDecl(PragmaDetectMismatchDecl *D);
     void VisitTranslationUnitDecl(TranslationUnitDecl *TU);
     void VisitNamedDecl(NamedDecl *ND);
@@ -654,6 +655,12 @@ void ASTDeclReader::VisitPragmaCommentDecl(PragmaCommentDecl *D) {
   memcpy(D->getTrailingObjects<char>(), Arg.data(), Arg.size());
   D->getTrailingObjects<char>()[Arg.size()] = '\0';
 }
+
+void ASTDeclReader::VisitPragmaTIStmtDecl(PragmaTIStmtDecl *D) {
+  VisitDecl(D);
+  D->_stmt = dyn_cast<PragmaLiebherrStmt>(Record.readStmt());
+}
+
 
 void ASTDeclReader::VisitPragmaDetectMismatchDecl(PragmaDetectMismatchDecl *D) {
   VisitDecl(D);
@@ -2969,6 +2976,7 @@ static bool isConsumerInterestedIn(ASTContext &Ctx, Decl *D, bool HasBody) {
       isa<ObjCImplDecl>(D) ||
       isa<ImportDecl>(D) ||
       isa<PragmaCommentDecl>(D) ||
+      isa<PragmaTIStmtDecl>(D) ||
       isa<PragmaDetectMismatchDecl>(D))
     return true;
   if (isa<OMPThreadPrivateDecl>(D) || isa<OMPDeclareReductionDecl>(D) ||
@@ -3839,6 +3847,9 @@ Decl *ASTReader::ReadDeclRecord(DeclID ID) {
     break;
   case DECL_PRAGMA_COMMENT:
     D = PragmaCommentDecl::CreateDeserialized(Context, ID, Record.readInt());
+    break;
+  case DECL_PRAGMA_TI_STMT:
+    D = PragmaTIStmtDecl::CreateDeserialized(Context, ID);
     break;
   case DECL_PRAGMA_DETECT_MISMATCH:
     D = PragmaDetectMismatchDecl::CreateDeserialized(Context, ID,

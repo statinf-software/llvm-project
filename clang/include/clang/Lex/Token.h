@@ -15,6 +15,7 @@
 
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/TokenKinds.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include <cassert>
 
@@ -326,6 +327,13 @@ struct PPConditionalInfo {
   /// True if we've seen a \#else in this block.  If so,
   /// \#elif/\#else directives are not allowed.
   bool FoundElse;
+};
+
+// Extra information needed for annonation tokens.
+struct PragmaLoopHintInfo {
+  Token PragmaName;
+  Token Option;
+  ArrayRef<Token> Toks;
 };
 
 struct PragmaLiebherrInfo {

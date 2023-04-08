@@ -1625,6 +1625,8 @@ DEF_TRAVERSE_DECL(TranslationUnitDecl, {
 
 DEF_TRAVERSE_DECL(PragmaCommentDecl, {})
 
+DEF_TRAVERSE_DECL(PragmaTIStmtDecl, {})
+
 DEF_TRAVERSE_DECL(PragmaDetectMismatchDecl, {})
 
 DEF_TRAVERSE_DECL(ExternCContextDecl, {})

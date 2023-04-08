@@ -168,6 +168,33 @@ public:
   static bool classofKind(Kind K) { return K == PragmaComment; }
 };
 
+/// Represents a `#pragma CODE_SECTION/DATA_SECTION/...` line. Always a child of
+/// TranslationUnitDecl.
+class PragmaLiebherrStmt;
+class PragmaTIStmtDecl final : public Decl {
+  friend class ASTDeclReader;
+  friend class ASTDeclWriter;
+
+  PragmaLiebherrStmt *_stmt=nullptr;
+
+  PragmaTIStmtDecl(DeclContext *DC, SourceLocation Loc,
+                    PragmaLiebherrStmt *stmt)
+      : Decl(PragmaTIStmt, DC, Loc), _stmt(stmt) {}
+
+  virtual void anchor();
+
+public:
+  static PragmaTIStmtDecl *Create(const ASTContext &C, PragmaLiebherrStmt *stmt);
+  static PragmaTIStmtDecl *CreateDeserialized(ASTContext &C, unsigned ID);
+
+  PragmaLiebherrStmt* getPragmaStmt() {return _stmt;}
+  const PragmaLiebherrStmt* getPragmaStmt() const {return _stmt;}
+
+  // Implement isa/cast/dyncast/etc.
+  static bool classof(const Decl *D) { return classofKind(D->getKind()); }
+  static bool classofKind(Kind K) { return K == PragmaTIStmt; }
+};
+
 /// Represents a `#pragma detect_mismatch` line. Always a child of
 /// TranslationUnitDecl.
 class PragmaDetectMismatchDecl final

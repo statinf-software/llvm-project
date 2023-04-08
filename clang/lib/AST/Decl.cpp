@@ -4906,6 +4906,20 @@ PragmaCommentDecl *PragmaCommentDecl::CreateDeserialized(ASTContext &C,
       PragmaCommentDecl(nullptr, SourceLocation(), PCK_Unknown);
 }
 
+void PragmaTIStmtDecl::anchor() {}
+
+PragmaTIStmtDecl *PragmaTIStmtDecl::Create(const ASTContext &C,
+                                             PragmaLiebherrStmt *stmt) {
+  SourceLocation BeginLoc = stmt->getBeginLoc();
+  DeclContext *DC = C.getTranslationUnitDecl();
+  return new (C, DC) PragmaTIStmtDecl(DC, BeginLoc, stmt);
+}
+
+PragmaTIStmtDecl *PragmaTIStmtDecl::CreateDeserialized(ASTContext &C,
+                                                         unsigned ID) {
+  return new (C, ID) PragmaTIStmtDecl(/*DC=*/nullptr, SourceLocation(), /*S=*/nullptr);
+}
+
 void PragmaDetectMismatchDecl::anchor() {}
 
 PragmaDetectMismatchDecl *

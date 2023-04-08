@@ -856,7 +856,7 @@ Parser::DeclGroupPtrTy Parser::ParseExternalDeclaration(ParsedAttributes &Attrs,
   case tok::annot_pragma_DATA_SECTION:
   case tok::annot_pragma_diag_suppress: {
     StmtResult stmt = ParsePragmaLiebherr();
-    SingleDecl = Actions.ActOnPragmaLiebherrDecl(stmt);
+    SingleDecl = Actions.ActOnPragmaLiebherrDecl(stmt.getAs<PragmaLiebherrStmt>());
     break;
   }
   case tok::semi:

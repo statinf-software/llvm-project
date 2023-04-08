@@ -1499,6 +1499,9 @@ enum DeclCode {
   /// A PragmaCommentDecl record.
   DECL_PRAGMA_COMMENT,
 
+  /// A PragmaTIStmtDecl record.
+  DECL_PRAGMA_TI_STMT,
+
   /// A PragmaDetectMismatchDecl record.
   DECL_PRAGMA_DETECT_MISMATCH,
 

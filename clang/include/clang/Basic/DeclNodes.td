@@ -12,6 +12,7 @@ class DeclContext {}
 def Decl : DeclNode<?, "", 1>;
 def TranslationUnit : DeclNode<Decl>, DeclContext;
 def PragmaComment : DeclNode<Decl>;
+def PragmaTIStmt : DeclNode<Decl>;
 def PragmaDetectMismatch : DeclNode<Decl>;
 def ExternCContext : DeclNode<Decl>, DeclContext;
 def Named : DeclNode<Decl, "named declarations", 1>;

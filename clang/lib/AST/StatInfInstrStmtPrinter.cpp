@@ -256,20 +256,21 @@ void StatInfInstrStmtPrinter::PrintRawIfStmt(IfStmt *If) {
 
   if (auto *CS = dyn_cast<CompoundStmt>(If->getThen())) {
     OS << ' ';
-    PrintStmt(If->getThen());
+    SetEnterThenBody();
     PrintRawCompoundStmt(CS);
     OS << (If->getElse() ? " " : NL);
-  } else {
+  } 
+  else {
     OS << " {" << NL;
     if(EnableStructuralAnalysis && enable_instrumentation)
       Indent(Policy.Indentation) << "STATINF_ENTER_THEN();" << NL;
     PrintStmt(If->getThen());
     Indent() << "}" << NL;
   }
-  Indent();
-  OS << "else";
   Stmt *Else = nullptr;
-  if (Else = If->getElse()) {
+  if ((Else = If->getElse())) {
+    Indent();
+    OS << "else";
     if (auto *CS = dyn_cast<CompoundStmt>(Else)) {
       OS << ' ';
       SetEnterElseBody();
@@ -290,6 +291,8 @@ void StatInfInstrStmtPrinter::PrintRawIfStmt(IfStmt *If) {
     }
   }
   else if(EnableStructuralAnalysis && enable_instrumentation) {
+    Indent();
+    OS << "else";
     OS << " {" << NL;
     Indent(Policy.Indentation) << "STATINF_ENTER_ELSE();" << NL;
     Indent() << "}" << NL;
@@ -875,11 +878,6 @@ void StatInfInstrStmtPrinter::VisitOMPTaskwaitDirective(OMPTaskwaitDirective *No
   PrintOMPExecutableDirective(Node);
 }
 
-void StatInfInstrStmtPrinter::VisitOMPErrorDirective(OMPErrorDirective *Node) {
-  Indent() << "#pragma omp error";
-  PrintOMPExecutableDirective(Node);
-}
-
 void StatInfInstrStmtPrinter::VisitOMPTaskgroupDirective(OMPTaskgroupDirective *Node) {
   Indent() << "#pragma omp taskgroup";
   PrintOMPExecutableDirective(Node);
@@ -1317,7 +1315,6 @@ void StatInfInstrStmtPrinter::VisitIntegerLiteral(IntegerLiteral *Node) {
   case BuiltinType::Char_S:
   case BuiltinType::Char_U:    OS << "i8"; break;
   case BuiltinType::UChar:     OS << "Ui8"; break;
-  case BuiltinType::SChar:     OS << "i8"; break;
   case BuiltinType::Short:     OS << "i16"; break;
   case BuiltinType::UShort:    OS << "Ui16"; break;
   case BuiltinType::Int:       break; // no suffix.
@@ -1330,9 +1327,6 @@ void StatInfInstrStmtPrinter::VisitIntegerLiteral(IntegerLiteral *Node) {
     break; // no suffix.
   case BuiltinType::UInt128:
     break; // no suffix.
-  case BuiltinType::WChar_S:
-  case BuiltinType::WChar_U:
-    break; // no suffix
   }
 }
 
@@ -1479,7 +1473,8 @@ void StatInfInstrStmtPrinter::VisitUnaryExprOrTypeTraitExpr(
 
   if (Node->isArgumentType()) {
     OS << '(';
-    Node->getArgumentType().print(OS, Policy);
+    // Node->getArgumentType().print(OS, Policy);
+    OS << Node->getArgumentType().getAsString();
     OS << ')';
   } else {
     OS << " ";
@@ -1641,7 +1636,8 @@ void StatInfInstrStmtPrinter::VisitExtVectorElementExpr(ExtVectorElementExpr *No
 
 void StatInfInstrStmtPrinter::VisitCStyleCastExpr(CStyleCastExpr *Node) {
   OS << '(';
-  Node->getTypeAsWritten().print(OS, Policy);
+  // Node->getTypeAsWritten().print(OS, Policy);
+  OS << Node->getTypeAsWritten().getAsString();
   OS << ')';
   PrintExpr(Node->getSubExpr());
 }
@@ -2205,8 +2201,7 @@ void StatInfInstrStmtPrinter::VisitLambdaExpr(LambdaExpr *Node) {
       OS << "...";
 
     if (Node->isInitCapture(C)) {
-      // Init captures are always VarDecl.
-      auto *D = cast<VarDecl>(C->getCapturedVar());
+      VarDecl *D = C->getCapturedVar();
 
       llvm::StringRef Pre;
       llvm::StringRef Post;
@@ -2307,7 +2302,7 @@ void StatInfInstrStmtPrinter::VisitCXXNewExpr(CXXNewExpr *E) {
   if (E->isArray()) {
     llvm::raw_string_ostream s(TypeS);
     s << '[';
-    if (std::optional<Expr *> Size = E->getArraySize())
+    if (Optional<Expr *> Size = E->getArraySize())
       (*Size)->printPretty(s, Helper, Policy);
     s << ']';
   }
@@ -2497,13 +2492,6 @@ void StatInfInstrStmtPrinter::VisitCXXFoldExpr(CXXFoldExpr *E) {
   OS << ")";
 }
 
-void StatInfInstrStmtPrinter::VisitCXXParenListInitExpr(CXXParenListInitExpr *Node) {
-  OS << "(";
-  llvm::interleaveComma(Node->getInitExprs(), OS,
-                        [&](Expr *E) { PrintExpr(E); });
-  OS << ")";
-}
-
 void StatInfInstrStmtPrinter::VisitConceptSpecializationExpr(ConceptSpecializationExpr *E) {
   NestedNameSpecifierLoc NNS = E->getNestedNameSpecifierLoc();
   if (NNS)
@@ -2560,7 +2548,7 @@ void StatInfInstrStmtPrinter::VisitRequiresExpr(RequiresExpr *E) {
     } else {
       auto *NestedReq = cast<concepts::NestedRequirement>(Req);
       OS << "requires ";
-      if (NestedReq->hasInvalidConstraint())
+      if (NestedReq->isSubstitutionFailure())
         OS << "<<error-expression>>";
       else
         PrintExpr(NestedReq->getConstraintExpr());

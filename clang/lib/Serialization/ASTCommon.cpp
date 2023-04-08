@@ -410,6 +410,7 @@ bool serialization::isRedeclarableDeclKind(unsigned Kind) {
   case Decl::Export:
   case Decl::ObjCPropertyImpl:
   case Decl::PragmaComment:
+  case Decl::PragmaTIStmt:
   case Decl::PragmaDetectMismatch:
   case Decl::FileScopeAsm:
   case Decl::AccessSpec:

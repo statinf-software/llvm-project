@@ -100,7 +100,7 @@ namespace clang {
         // If this is an expr used in a stmt context, indent and newline it.
         Indent();
         Visit(S);
-        OS << ";" << NL;
+         OS << ";" << NL;
       } else if (S) {
         Visit(S);
       } else {

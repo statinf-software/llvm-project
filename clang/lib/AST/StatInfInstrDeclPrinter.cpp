@@ -316,7 +316,7 @@ void StatInfInstrDeclPrinter::VisitDeclContext(DeclContext *DC, bool Indent) {
         Terminator = ";";
     } else if (isa<NamespaceDecl, LinkageSpecDecl, ObjCImplementationDecl,
                    ObjCInterfaceDecl, ObjCProtocolDecl, ObjCCategoryImplDecl,
-                   ObjCCategoryDecl, HLSLBufferDecl>(*D))
+                   ObjCCategoryDecl>(*D))
       Terminator = nullptr;
     else if (isa<EnumConstantDecl>(*D)) {
       DeclContext::decl_iterator Next = D;
@@ -820,9 +820,9 @@ void StatInfInstrDeclPrinter::VisitFileScopeAsmDecl(FileScopeAsmDecl *D) {
   Out << ")";
 }
 
-void StatInfInstrDeclPrinter::VisitTopLevelStmtDecl(TopLevelStmtDecl *D) {
-  assert(D->getStmt());
-  D->getStmt()->printPretty(Out, nullptr, Policy, Indentation, "\n", &Context);
+void StatInfInstrDeclPrinter::VisitPragmaTIStmtDecl(PragmaTIStmtDecl *D) {
+  StatInfInstrStmtPrinter P(Out, this, nullptr, Policy, Indentation, "\n", &Context);
+  P.Visit(D->getPragmaStmt());
 }
 
 void StatInfInstrDeclPrinter::VisitImportDecl(ImportDecl *D) {
@@ -1549,20 +1549,20 @@ void StatInfInstrDeclPrinter::VisitOMPThreadPrivateDecl(OMPThreadPrivateDecl *D)
   }
 }
 
-void StatInfInstrDeclPrinter::VisitHLSLBufferDecl(HLSLBufferDecl *D) {
-  if (D->isCBuffer())
-    Out << "cbuffer ";
-  else
-    Out << "tbuffer ";
+// void StatInfInstrDeclPrinter::VisitHLSLBufferDecl(HLSLBufferDecl *D) {
+//   if (D->isCBuffer())
+//     Out << "cbuffer ";
+//   else
+//     Out << "tbuffer ";
 
-  Out << *D;
+//   Out << *D;
 
-  prettyPrintAttributes(D);
+//   prettyPrintAttributes(D);
 
-  Out << " {\n";
-  VisitDeclContext(D);
-  Indent() << "}";
-}
+//   Out << " {\n";
+//   VisitDeclContext(D);
+//   Indent() << "}";
+// }
 
 void StatInfInstrDeclPrinter::VisitOMPAllocateDecl(OMPAllocateDecl *D) {
   Out << "#pragma omp allocate";
@@ -1604,7 +1604,7 @@ void StatInfInstrDeclPrinter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDe
       Out << OpName;
     } else {
       assert(D->getDeclName().isIdentifier());
-      D->printName(Out, Policy);
+      D->printName(Out);
     }
     Out << " : ";
     D->getType().print(Out, Policy);
@@ -1634,7 +1634,7 @@ void StatInfInstrDeclPrinter::VisitOMPDeclareReductionDecl(OMPDeclareReductionDe
 void StatInfInstrDeclPrinter::VisitOMPDeclareMapperDecl(OMPDeclareMapperDecl *D) {
   if (!D->isInvalidDecl()) {
     Out << "#pragma omp declare mapper (";
-    D->printName(Out, Policy);
+    D->printName(Out);
     Out << " : ";
     D->getType().print(Out, Policy);
     Out << " ";

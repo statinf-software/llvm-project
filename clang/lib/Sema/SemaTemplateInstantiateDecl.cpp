@@ -878,6 +878,11 @@ TemplateDeclInstantiator::VisitPragmaCommentDecl(PragmaCommentDecl *D) {
   llvm_unreachable("pragma comment cannot be instantiated");
 }
 
+Decl *
+TemplateDeclInstantiator::VisitPragmaTIStmtDecl(PragmaTIStmtDecl *D) {
+  llvm_unreachable("pragma cannot be instantiated");
+}
+
 Decl *TemplateDeclInstantiator::VisitPragmaDetectMismatchDecl(
     PragmaDetectMismatchDecl *D) {
   llvm_unreachable("pragma comment cannot be instantiated");

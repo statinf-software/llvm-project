@@ -1848,6 +1848,10 @@ void TextNodeDumper::VisitPragmaCommentDecl(const PragmaCommentDecl *D) {
     OS << " \"" << Arg << "\"";
 }
 
+void TextNodeDumper::VisitPragmaTIStmtDecl(const PragmaTIStmtDecl *D) {
+  OS << "#pragma " << D->getPragmaStmt()->getPragmaLbl()->getString().str() << D->getPragmaStmt()->getRawParams()->getString().str();
+}
+
 void TextNodeDumper::VisitPragmaDetectMismatchDecl(
     const PragmaDetectMismatchDecl *D) {
   OS << " \"" << D->getName() << "\" \"" << D->getValue() << "\"";

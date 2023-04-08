@@ -56,6 +56,7 @@ namespace clang {
 
     void VisitDecl(Decl *D);
     void VisitPragmaCommentDecl(PragmaCommentDecl *D);
+    void VisitPragmaTIStmtDecl(PragmaTIStmtDecl *D);
     void VisitPragmaDetectMismatchDecl(PragmaDetectMismatchDecl *D);
     void VisitTranslationUnitDecl(TranslationUnitDecl *D);
     void VisitNamedDecl(NamedDecl *D);
@@ -343,6 +344,12 @@ void ASTDeclWriter::VisitPragmaCommentDecl(PragmaCommentDecl *D) {
   Record.push_back(D->getCommentKind());
   Record.AddString(Arg);
   Code = serialization::DECL_PRAGMA_COMMENT;
+}
+
+void ASTDeclWriter::VisitPragmaTIStmtDecl(PragmaTIStmtDecl *D) {
+  VisitDecl(D);
+  Record.AddStmt(D->getPragmaStmt());
+  Code = serialization::DECL_PRAGMA_TI_STMT;
 }
 
 void ASTDeclWriter::VisitPragmaDetectMismatchDecl(

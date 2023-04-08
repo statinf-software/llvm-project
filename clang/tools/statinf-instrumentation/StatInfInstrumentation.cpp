@@ -143,7 +143,13 @@ int main(int argc, const char **argv) {
       InstrMacroDefFilePath = "statinf_instrumentation.h";
     }
 
-    vector<string> args{"-Wno-int-conversion", "-Wno-unused-value"};
+    vector<string> args{"-Wno-int-conversion", 
+    "-Wno-unused-value", 
+    "-Wno-implicit-function-declaration", 
+    "-Wno-shift-count-overflow",
+    "-Wno-parentheses-equality",
+    "-Wno-main-return-type",
+    "-Wno-missing-declarations"};
 
     shared_ptr<clang::PCHContainerOperations> PCHContainerOps = make_shared<clang::PCHContainerOperations>();
     std::vector<std::string> AbsolutePaths;
@@ -249,16 +255,16 @@ int main(int argc, const char **argv) {
     StatInfPrinterLauncher launch(new_code_stream, &cg, !OptDisStructAnalysis.getValue(), !OptDisTempAnalysis.getValue());
     launch.Initialize(ast->getASTContext());
     launch.HandleTranslationUnit(ast->getASTContext());
-    // llvm::errs() << new_code << "\n";
+    llvm::errs() << new_code << "\n";
 
-    // Finally re-preprocess to unroll StatInf instrumentation macros
-    std::unique_ptr<clang::ASTUnit> final_ast = buildASTFromCodeWithArgs(
-      new_code, args, "/tmp/file.c",
-      "statinf-instrumentation", PCHContainerOps
-    );
-    unique_ptr<clang::ASTConsumer> final_printer = clang::CreateASTPrinter(move(OutFile), "");
-    final_printer->Initialize(final_ast->getASTContext());
-    final_printer->HandleTranslationUnit(final_ast->getASTContext());
+    // // Finally re-preprocess to unroll StatInf instrumentation macros
+    // std::unique_ptr<clang::ASTUnit> final_ast = buildASTFromCodeWithArgs(
+    //   new_code, args, "/tmp/file.c",
+    //   "statinf-instrumentation", PCHContainerOps
+    // );
+    // unique_ptr<clang::ASTConsumer> final_printer = clang::CreateASTPrinter(move(OutFile), "");
+    // final_printer->Initialize(final_ast->getASTContext());
+    // final_printer->HandleTranslationUnit(final_ast->getASTContext());
 
     return 0;
 }

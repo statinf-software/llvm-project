@@ -555,7 +555,7 @@ namespace clang {
     ExpectedDecl VisitBuiltinTemplateDecl(BuiltinTemplateDecl *D);
     ExpectedDecl
     VisitLifetimeExtendedTemporaryDecl(LifetimeExtendedTemporaryDecl *D);
-    ExpectedDecl VisitTopLevelStmtDecl(TopLevelStmtDecl *S);
+    ExpectedDecl VisitPragmaTIStmtDecl(PragmaTIStmtDecl *S);
 
     Expected<ObjCTypeParamList *>
     ImportObjCTypeParamList(ObjCTypeParamList *list);
@@ -4911,29 +4911,29 @@ ExpectedDecl ASTNodeImporter::VisitUsingPackDecl(UsingPackDecl *D) {
   return ToUsingPack;
 }
 
-ExpectedDecl ASTNodeImporter::VisitTopLevelStmtDecl(TopLevelStmtDecl *D) {
+ExpectedDecl ASTNodeImporter::VisitPragmaTIStmtDecl(PragmaTIStmtDecl *D) {
 
-  //Todo: create a "equals()" into DeclBase, Stmt to check equivalence
-  // the containtsDecl only checks pointer values
-  auto foP = dyn_cast<PragmaLiebherrStmt>(D->getStmt());
-  for(Decl *cd : Importer.getToContext().getTranslationUnitDecl()->decls()) {
-    if(auto tcd = dyn_cast<TopLevelStmtDecl>(cd)) {
-      auto toP = dyn_cast<PragmaLiebherrStmt>(tcd->getStmt());
-      if(foP->getPragmaLbl()->getString() == toP->getPragmaLbl()->getString() && 
-        foP->getRawParams()->getString() == toP->getRawParams()->getString()) {
-          auto locOrErr = import(toP->getPragmaLoc());
-          if(!locOrErr)
-            return locOrErr.takeError();
-          return TopLevelStmtDecl::Create(Importer.getToContext(), new (Importer.getToContext()) NullStmt(locOrErr.get(), false));
-      }
-    }
-  }
+  // //Todo: create a "equals()" into DeclBase, Stmt to check equivalence
+  // // the containtsDecl only checks pointer values
+  // auto foP = dyn_cast<PragmaLiebherrStmt>(D->getStmt());
+  // for(Decl *cd : Importer.getToContext().getTranslationUnitDecl()->decls()) {
+  //   if(auto tcd = dyn_cast<TopLevelStmtDecl>(cd)) {
+  //     auto toP = dyn_cast<PragmaLiebherrStmt>(tcd->getStmt());
+  //     if(foP->getPragmaLbl()->getString() == toP->getPragmaLbl()->getString() && 
+  //       foP->getRawParams()->getString() == toP->getRawParams()->getString()) {
+  //         auto locOrErr = import(toP->getPragmaLoc());
+  //         if(!locOrErr)
+  //           return locOrErr.takeError();
+  //         return TopLevelStmtDecl::Create(Importer.getToContext(), new (Importer.getToContext()) NullStmt(locOrErr.get(), false));
+  //     }
+  //   }
+  // }
 
-  auto ToTopDeclStmtOrErr = Importer.Import(D->getStmt());
+  auto ToTopDeclStmtOrErr = Importer.Import(D->getPragmaStmt());
   if(!ToTopDeclStmtOrErr)
     return ToTopDeclStmtOrErr.takeError();
 
-  TopLevelStmtDecl *ND = TopLevelStmtDecl::Create(Importer.getToContext(), ToTopDeclStmtOrErr.get());
+  PragmaTIStmtDecl *ND = PragmaTIStmtDecl::Create(Importer.getToContext(), dyn_cast<PragmaLiebherrStmt>(ToTopDeclStmtOrErr.get()));
   addDeclToContexts(D, ND);
   return ND;
 }

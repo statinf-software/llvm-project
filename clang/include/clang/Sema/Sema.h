@@ -5028,7 +5028,7 @@ public:
   StmtResult ActOnPragmaLiebherrStmt(SourceLocation PragmaLoc, 
                             StringRef PragmaLbl, std::string RawParam,
                              Scope *CurScope);
-  Decl * ActOnPragmaLiebherrDecl(StmtResult stmt);
+  Decl * ActOnPragmaLiebherrDecl(PragmaLiebherrStmt *stmt);
 
   void ActOnCapturedRegionStart(SourceLocation Loc, Scope *CurScope,
                                 CapturedRegionKind Kind, unsigned NumParams);

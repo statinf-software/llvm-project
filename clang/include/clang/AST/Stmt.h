@@ -3774,6 +3774,9 @@ public:
   StringLiteral * getPragmaLbl() { return PragmaLbl; }
   StringLiteral * getRawParams() { return RawParams; }
 
+  const StringLiteral * getPragmaLbl() const { return PragmaLbl; }
+  const StringLiteral * getRawParams() const { return RawParams; }
+
   SourceLocation getBeginLoc() const { return getPragmaLoc(); }
   SourceLocation getEndLoc() const { return getPragmaLoc(); }
 

@@ -338,6 +338,7 @@ public:
   void VisitCapturedDecl(const CapturedDecl *D);
   void VisitImportDecl(const ImportDecl *D);
   void VisitPragmaCommentDecl(const PragmaCommentDecl *D);
+  void VisitPragmaTIStmtDecl(const PragmaTIStmtDecl *D);
   void VisitPragmaDetectMismatchDecl(const PragmaDetectMismatchDecl *D);
   void VisitOMPExecutableDirective(const OMPExecutableDirective *D);
   void VisitOMPDeclareReductionDecl(const OMPDeclareReductionDecl *D);

@@ -672,9 +672,11 @@ bool Sema::isMicrosoftMissingTypename(const CXXScopeSpec *SS, Scope *S) {
     const Type *Ty = SS->getScopeRep()->getAsType();
 
     CXXRecordDecl *RD = cast<CXXRecordDecl>(CurContext);
-    for (const auto &Base : RD->bases())
-      if (Ty && Context.hasSameUnqualifiedType(QualType(Ty, 1), Base.getType()))
-        return true;
+    if(RD) {
+      for (const auto &Base : RD->bases())
+        if (Ty && Context.hasSameUnqualifiedType(QualType(Ty, 1), Base.getType()))
+          return true;
+    }
     return S->isFunctionPrototypeScope();
   }
   return CurContext->isFunctionOrMethod() || S->isFunctionPrototypeScope();
@@ -19334,8 +19336,8 @@ bool Sema::shouldIgnoreInHostDeviceCheck(FunctionDecl *Callee) {
          IdentifyCUDATarget(Callee) == CFT_Global;
 }
 
-Decl * Sema::ActOnPragmaLiebherrDecl(StmtResult stmt) {
-  auto *New = TopLevelStmtDecl::Create(Context, stmt.get());
+Decl * Sema::ActOnPragmaLiebherrDecl(PragmaLiebherrStmt *stmt) {
+  auto *New = PragmaTIStmtDecl::Create(Context, stmt);
   Context.getTranslationUnitDecl()->addDecl(New);
   return New;
 }
