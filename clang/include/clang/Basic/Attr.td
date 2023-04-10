@@ -697,6 +697,13 @@ def Aligned : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def BytePeripheral : TypeAttr {
+  let Spellings = [GCC<"byte_peripheral">];
+  let Subjects = SubjectList<[TypedefName], ErrorDiag>;
+  let Documentation = [Undocumented];
+  let SimpleHandler = 1;
+}
+
 def AlignValue : Attr {
   let Spellings = [
     // Unfortunately, this is semantically an assertion, not a directive
