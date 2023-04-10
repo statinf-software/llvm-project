@@ -265,7 +265,7 @@ int main(int argc, const char **argv) {
     // unique_ptr<clang::ASTConsumer> final_printer = clang::CreateASTPrinter(move(OutFile), "");
     // final_printer->Initialize(final_ast->getASTContext());
     // final_printer->HandleTranslationUnit(final_ast->getASTContext());
-    StatInfPrinterLauncher launch2(*(OutFile.get()), &cg, false, false);
+    StatInfPrinterLauncher launch2(OutFile ? *(OutFile.get()) : llvm::outs(), &cg, false, false);
     launch2.Initialize(final_ast->getASTContext());
     launch2.HandleTranslationUnit(final_ast->getASTContext());
 

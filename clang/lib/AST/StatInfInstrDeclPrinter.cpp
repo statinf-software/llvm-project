@@ -323,7 +323,11 @@ void StatInfInstrDeclPrinter::VisitDeclContext(DeclContext *DC, bool Indent) {
       ++Next;
       if (Next != DEnd)
         Terminator = ",";
-    } else
+    } 
+    else if(isa<PragmaTIStmtDecl>(*D)) {
+      Terminator = nullptr;
+    }
+    else
       Terminator = ";";
 
     if (Terminator)
