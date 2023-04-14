@@ -664,8 +664,16 @@ void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
         if(D->getName() == "main")
           P.SetEnterMainFunction();
 
-        if(callgraph && (callgraph->getNode(D) || callgraph->getNode(D->getFirstDecl()) || callgraph->getNode(D->getCanonicalDecl())))
+        /*
+          Enable instrumentation:
+          - structural: the function is in the call graph
+          - temporal: the function is the entrypoint given by the user
+        */
+        if(EnableStructuralAnalysis && ((callgraph->getNode(D) || callgraph->getNode(D->getFirstDecl()) || callgraph->getNode(D->getCanonicalDecl()))))
           P.SetEnableInstrumentation();
+        if(EnableTemporalAnalysis && D->getName() == entrypoint_func_name.str())
+          P.SetEnableInstrumentation();
+
         if(D->getName() == entrypoint_func_name.str())
           P.SetEnterEntryPointFunc();
         P.SetEnterFunctionBody();
