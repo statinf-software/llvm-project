@@ -52,3 +52,4 @@ add_clang_subdirectory(libclang)
 add_clang_subdirectory(amdgpu-arch)
 
 add_clang_subdirectory(statinf-instrumentation)
+add_clang_subdirectory(statinf-CFGextendedExecInfo)

@@ -1155,6 +1155,8 @@ private:
   /// Whether statistic collection is enabled.
   static bool StatisticsEnabled;
 
+  uint32_t statinf_exec_count = 0;
+
 protected:
   /// Construct an empty statement.
   explicit Stmt(StmtClass SC, EmptyShell) : Stmt(SC) {}
@@ -1167,7 +1169,7 @@ public:
   Stmt &operator=(Stmt &&) = delete;
 
   Stmt(StmtClass SC) {
-    static_assert(sizeof(*this) <= 8,
+    static_assert(sizeof(*this) <= 8+8,
                   "changing bitfields changed sizeof(Stmt)");
     static_assert(sizeof(*this) % alignof(void *) == 0,
                   "Insufficient alignment!");
@@ -1303,6 +1305,10 @@ public:
   /// \param Hash an ODRHash object which will be called where pointers would
   /// have been used in the Profile function.
   void ProcessODRHash(llvm::FoldingSetNodeID &ID, ODRHash& Hash) const;
+
+  void incrExec() {++statinf_exec_count;}
+  uint32_t getExecCount() const { return statinf_exec_count; }
+  void clearExecCount() { statinf_exec_count = 0; }
 };
 
 /// DeclStmt - Adaptor class for mixing declarations with statements and

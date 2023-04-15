@@ -1511,6 +1511,8 @@ std::unique_ptr<CFG> CFGBuilder::buildCFG(const Decl *D, Stmt *Statement) {
   if (badCFG)
     return nullptr;
 
+  cfg->setInitialDecl(D);
+
   // For C++ constructor add initializers to CFG. Constructors of virtual bases
   // are ignored unless the object is of the most derived class.
   //   class VBase { VBase() = default; VBase(int) {} };

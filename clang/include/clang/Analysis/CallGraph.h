@@ -76,6 +76,9 @@ public:
   /// Lookup the node for the given declaration.
   CallGraphNode *getNode(const Decl *) const;
 
+  /// Lookup the node for the given name
+  CallGraphNode *getNode(const StringRef Fname) const;
+
   /// Lookup the node for the given declaration. If none found, insert
   /// one into the graph.
   CallGraphNode *getOrInsertNode(Decl *);
