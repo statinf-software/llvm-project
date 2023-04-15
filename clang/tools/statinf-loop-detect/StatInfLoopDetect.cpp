@@ -61,45 +61,71 @@ static cl::list<std::string>
 namespace {
 
 class LoopDetect : public MatchCallback {
-  SmallVector<std::string> doloop;
-  SmallVector<std::string> forloop;
-  SmallVector<std::string> whileloop;
+  std::map<std::string, SmallVector<clang::DoStmt*>> doloop;
+  std::map<std::string, SmallVector<clang::ForStmt*>> forloop;
+  std::map<std::string, SmallVector<clang::WhileStmt*>> whileloop;
 
+  std::string current_func;
+
+  clang::SourceManager *sm = nullptr;
 public:
   explicit LoopDetect() {}
 
   virtual void run(const MatchResult &Result) {
-    if (const clang::DoStmt *S = Result.Nodes.getNodeAs<clang::DoStmt>("dostmt")) {
-      doloop.push_back(S->getBeginLoc().printToString(*(Result.SourceManager)));
+    if(!sm)
+      sm = Result.SourceManager;
+    if (const clang::FunctionDecl *F = Result.Nodes.getNodeAs<clang::FunctionDecl>("func")) {
+      current_func = F->getName().str();
+    }
+    else if (const clang::DoStmt *S = Result.Nodes.getNodeAs<clang::DoStmt>("dostmt")) {
+      doloop[current_func].push_back(const_cast<clang::DoStmt*>(S));
     }
     else if (const clang::ForStmt *S = Result.Nodes.getNodeAs<clang::ForStmt>("forstmt")) {
-      forloop.push_back(S->getBeginLoc().printToString(*(Result.SourceManager)));
+      forloop[current_func].push_back(const_cast<clang::ForStmt*>(S));
     }
     else if (const clang::WhileStmt *S = Result.Nodes.getNodeAs<clang::WhileStmt>("whilestmt")) {
-      whileloop.push_back(S->getBeginLoc().printToString(*(Result.SourceManager)));
+      whileloop[current_func].push_back(const_cast<clang::WhileStmt*>(S));
     }
   }
 
-  void print(llvm::raw_ostream &OS) {
-    std::string doloop_str = "";
-    for(auto s : doloop)
-      doloop_str += "\t\t\""+s+"\",\n";
-    std::string forloop_str = "";
-    for(auto s : forloop)
-      forloop_str += "\t\t\""+s+"\",\n";
-    std::string whileloop_str = "";
-    for(auto s : whileloop)
-      whileloop_str += "\t\t\""+s+"\",\n";
+  template<class Ty>
+  std::string getMapToJson(std::map<std::string, SmallVector<Ty>> loops) {
+    std::string loop_str = "";
+    for(auto fn : loops) {
+      loop_str += "\t\t\""+fn.first+"\": [\n";
+      for(auto loop : fn.second) {
+        std::string loc = loop->getBeginLoc().printToString(*sm);
 
+        size_t pos = loc.find_first_of(":");
+        std::string file = loc.substr(0, pos);
+        
+        size_t pos2 = loc.find_first_of(":", pos+1);
+        std::string line = loc.substr(pos+1, pos2-pos-1);
+        
+        std::string maxcount = "-1";
+        
+        loop_str += "\t\t\t{\n";
+        loop_str += "\t\t\t\t\"file\": "+file+"\",\n";
+        loop_str += "\t\t\t\t\"line\": "+line+",\n";
+        loop_str += "\t\t\t\t\"maxcount\": "+maxcount+"\n";
+        loop_str += "\t\t\t},\n";
+      }
+      loop_str = loop_str.substr(0, loop_str.size()-2);
+      loop_str += "\n\t\t],\n";
+    }
+    return loop_str.substr(0, loop_str.size()-2) + "\n";
+  }
+
+  void print(llvm::raw_ostream &OS) {
     OS << "{\n";
     OS << "\t\"do loop\": [\n";
-    OS << doloop_str.substr(0, doloop_str.size()-2) << "\n";
+    OS << getMapToJson(doloop);
     OS << "\t],\n";
     OS << "\t\"for loop\": [\n";
-    OS << forloop_str.substr(0, forloop_str.size()-2) << "\n";
+    OS << getMapToJson(forloop);
     OS << "\t],\n";
     OS << "\t\"while loop\": [\n";
-    OS << whileloop_str.substr(0, whileloop_str.size()-2) << "\n";
+    OS << getMapToJson(whileloop);
     OS << "\t]\n";
     OS << "}";
   }
@@ -217,11 +243,13 @@ int main(int argc, const char **argv) {
     }
 
     // Extract the call graph from the given entrypoint
+    am::DeclarationMatcher func = am::functionDecl(am::anything()).bind("func");
     am::StatementMatcher m_dostmt = am::doStmt(am::anything()).bind("dostmt");
     am::StatementMatcher m_forstmt = am::forStmt(am::anything()).bind("forstmt");
     am::StatementMatcher m_whilestmt = am::whileStmt(am::anything()).bind("whilestmt");
     LoopDetect loop_detect;
     am::MatchFinder Finder;
+    Finder.addMatcher(func, &loop_detect);
     Finder.addMatcher(m_dostmt, &loop_detect);
     Finder.addMatcher(m_forstmt, &loop_detect);
     Finder.addMatcher(m_whilestmt, &loop_detect);
