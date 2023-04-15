@@ -16,5 +16,4 @@ clang_target_link_libraries(statinf-loop-detect
   clangFrontend
   clangTooling
   clangToolingSyntax
-  clangAnalysis
   )
