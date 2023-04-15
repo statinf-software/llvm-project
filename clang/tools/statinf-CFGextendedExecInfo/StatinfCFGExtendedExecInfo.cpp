@@ -350,7 +350,13 @@ int main(int argc, const char **argv) {
     bitstream_fs.close();
   }
 
-  vector<string> args{"-Wno-int-conversion", "-Wno-unused-value"};
+  vector<string> args{"-Wno-int-conversion", 
+    "-Wno-unused-value", 
+    "-Wno-implicit-function-declaration", 
+    "-Wno-shift-count-overflow",
+    "-Wno-parentheses-equality",
+    "-Wno-main-return-type",
+    "-Wno-missing-declarations"};
 
   shared_ptr<clang::PCHContainerOperations> PCHContainerOps = make_shared<clang::PCHContainerOperations>();
   vector<string> AbsolutePaths;
