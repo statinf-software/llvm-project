@@ -38,14 +38,15 @@ namespace clang {
     uint8_t trace_bit_idx = 7; // index of the current bit in the current char, always between [7,0], decremented to read from left to right
 
     size_t time_num_bits; //number of bits to code a timestamp
+    StringRef EntryPointName;
 
     llvm::SmallSet<std::string,8> missing_func_body;
 
   public:
-    StatInfASTExtendExecInfoDecl(const ASTContext &Context, const std::vector<unsigned char> &bt, bool structural, bool temporal, size_t tnb)
+    StatInfASTExtendExecInfoDecl(const ASTContext &Context, StringRef en, const std::vector<unsigned char> &bt, bool structural, bool temporal, size_t tnb)
         : Context(Context), bitstream_trace(bt), 
         contains_structural_analysis_data(structural), contains_temporal_analysis_data(temporal), 
-        time_num_bits(tnb) {}
+        time_num_bits(tnb), EntryPointName(en) {}
 
     llvm::SmallSet<std::string,8> getMissingFunctionBody() {return missing_func_body; }
 

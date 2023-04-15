@@ -73,7 +73,6 @@ StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::visitAllLo
         if(status == StatInfASTExtendExecInfoStmt_ns::STATUS::EXIT_FUNCTION)
             return status;
 
-        get_branch_taken;
         if(!declvisitor->getSmallNBits(1, &get_branch_taken))
           return StatInfASTExtendExecInfoStmt_ns::STATUS::EXIT_FUNCTION;
     }

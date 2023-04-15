@@ -90,7 +90,7 @@ static cl::opt<bool>
     );
 static cl::opt<bool>
     IsTemporalAnalysis("temporal",
-      cl::desc("The provided trace is contains structural execution information (if-then-else, loops, ...)"),
+      cl::desc("The provided trace is contains temporal execution information (uniquement entrypoint)"),
       cl::cat(CFGExtendExecInfoCat)
     );
 static cl::opt<size_t>
@@ -134,7 +134,9 @@ static cl::opt<bool>
 static cl::opt<string>
     SplitDir(
       "split-dir",
-      cl::desc("Enable to generate a CFG dot file per execution of the bitstream"),
+      cl::desc("Enable to generate a separate CFG dot file per execution got from the bitstream. "
+              "This options specifies in which folder the generated file are storede."
+              "The folder must exist."),
       cl::cat(CFGExtendExecInfoCat)
     );
 static cl::opt<bool>
@@ -236,7 +238,7 @@ public:
   virtual void run(const MatchResult &Result) override {
     if (const clang::FunctionDecl *FS = Result.Nodes.getNodeAs<clang::FunctionDecl>("entrypoint")) {
       llvm::errs() << "Add trace info " << FS->getName() << "\n";
-      clang::StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), bitstream_trace, IsStructuralAnalysis, IsTemporalAnalysis, TimeBitsSize);
+      clang::StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), FS->getName(), bitstream_trace, IsStructuralAnalysis, IsTemporalAnalysis, TimeBitsSize);
       while(!extend.EOBS()) {
         extend.VisitFunctionDecl(const_cast<clang::FunctionDecl*>(FS));
       }
@@ -260,7 +262,7 @@ public:
   virtual void run(const MatchResult &Result) override {
     if (const clang::FunctionDecl *FS = Result.Nodes.getNodeAs<clang::FunctionDecl>("entrypoint")) {
       llvm::errs() << "Add trace info " << FS->getName() << "\n";
-      clang::StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), bitstream_trace, IsStructuralAnalysis, IsTemporalAnalysis, TimeBitsSize);
+      clang::StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), FS->getName(), bitstream_trace, IsStructuralAnalysis, IsTemporalAnalysis, TimeBitsSize);
       clang::StatInfASTResetExecInfoDecl reset(FS->getASTContext());
       size_t exec_count = 0;
       while(!extend.EOBS()) {

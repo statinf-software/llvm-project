@@ -148,12 +148,7 @@ namespace clang {
 // }
 
 void StatInfASTExtendExecInfoDecl::VisitFunctionDecl(FunctionDecl *F) {
-    if (!F->getBody()) {
-        missing_func_body.insert(F->getName().str());
-        return;
-    }
-
-    if(contains_temporal_analysis_data) {
+    if(contains_temporal_analysis_data && EntryPointName == F->getName()) {
         size_t time;
         if(!getNbits(time_num_bits, &time))
             return;
@@ -173,7 +168,7 @@ void StatInfASTExtendExecInfoDecl::VisitFunctionDecl(FunctionDecl *F) {
             missing_func_body.insert(F->getName().str());
     }
 
-    if(contains_temporal_analysis_data) {
+    if(contains_temporal_analysis_data && EntryPointName == F->getName()) {
         size_t time;
         if(!getNbits(time_num_bits, &time))
             return;
