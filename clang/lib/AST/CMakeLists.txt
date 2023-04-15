@@ -121,6 +121,9 @@ add_clang_library(clangAST
   VTTBuilder.cpp
   StatInfInstrDeclPrinter.cpp
   StatInfInstrStmtPrinter.cpp
+  StatInfASTExtendExecInfoDecl.cpp
+  StatInfASTExtendExecInfoStmt.cpp
+  StatInfASTResetExecInfoDecl.cpp
 
   LINK_LIBS
   clangBasic

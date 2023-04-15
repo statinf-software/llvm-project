@@ -201,6 +201,20 @@ void CallGraph::addNodeForDecl(Decl* D, bool IsGlobal) {
   }
 }
 
+CallGraphNode *CallGraph::getNode(const StringRef Fname) const {
+  llvm::ReversePostOrderTraversal<const CallGraph *> RPOT(this);
+  for (llvm::ReversePostOrderTraversal<const CallGraph *>::rpo_iterator
+         I = RPOT.begin(), E = RPOT.end(); I != E; ++I) {
+    const CallGraphNode *N = *I;
+    std::string node_name;
+    llvm::raw_string_ostream os(node_name);
+    N->print(os);
+    if(node_name == Fname)
+      return const_cast<CallGraphNode*>(N);
+  }
+  return nullptr;
+}
+
 CallGraphNode *CallGraph::getNode(const Decl *F) const {
   FunctionMapTy::const_iterator I = FunctionMap.find(F);
   if (I == FunctionMap.end()) return nullptr;

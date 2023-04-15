@@ -1253,6 +1253,7 @@ public:
     bool MarkElidedCXXConstructors = false;
     bool AddVirtualBaseBranches = false;
     bool OmitImplicitValueInitializers = false;
+    bool AddExecutionStateExtractedFromATrace = false;
 
     BuildOptions() = default;
 
@@ -1444,9 +1445,15 @@ public:
     return BlkBVC;
   }
 
+  void setInitialDecl(const Decl *D) {init_decl = const_cast<Decl*>(D);}
+
+  Decl * getInitialDecl() const { return init_decl; }
+
 private:
   CFGBlock *Entry = nullptr;
   CFGBlock *Exit = nullptr;
+
+  Decl *init_decl = nullptr;
 
   // Special block to contain collective dispatch for indirect gotos
   CFGBlock* IndirectGotoBlock = nullptr;

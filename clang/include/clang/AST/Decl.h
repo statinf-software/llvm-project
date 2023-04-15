@@ -1997,6 +1997,10 @@ private:
   /// the DeclaratorDecl base class.
   DeclarationNameLoc DNLoc;
 
+  llvm::SmallVector<size_t> statinf_entry_timestamp;
+  llvm::SmallVector<size_t> statinf_exit_timestamp;
+
+
   /// Specify that this function declaration is actually a function
   /// template specialization.
   ///
@@ -2901,6 +2905,28 @@ public:
   }
   static FunctionDecl *castFromDeclContext(const DeclContext *DC) {
     return static_cast<FunctionDecl *>(const_cast<DeclContext*>(DC));
+  }
+
+  void addEntryTimestamp(size_t time) {
+    statinf_entry_timestamp.push_back(time);
+  }
+
+  void addExitTimestamp(size_t time) {
+    statinf_exit_timestamp.push_back(time);
+  }
+
+  llvm::SmallVector<size_t> getEntryTimestamp() {
+    return statinf_entry_timestamp;
+  }
+  llvm::SmallVector<size_t> getExitTimestamp() {
+    return statinf_exit_timestamp;
+  }
+
+  void clearEntryTimestamp() {
+    statinf_entry_timestamp.clear();
+  }
+  void clearExitTimestamp() {
+    statinf_exit_timestamp.clear();
   }
 };
 
