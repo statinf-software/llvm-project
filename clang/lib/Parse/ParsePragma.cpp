@@ -4024,7 +4024,6 @@ void PragmaLiebherrHandler::HandlePragma(Preprocessor &PP,
 
     PP.Lex(Tok);
     if(Tok.getKind() == tok::comma) {
-      PP.Diag(Tok.getLocation(), diag::err_pragma_Liebherr_malformed);
       params += ",";
 
       PP.Lex(Tok);
@@ -4037,12 +4036,14 @@ void PragmaLiebherrHandler::HandlePragma(Preprocessor &PP,
       if(Tok.getKind() != tok::comma) {
         PP.Diag(Tok.getLocation(), diag::err_pragma_Liebherr_malformed);
       }
-      params += ",";
-      PP.Lex(Tok);
-      if(Tok.getIdentifierInfo())
-        params += Tok.getIdentifierInfo()->getName();
-      else
-        params += Tok.getRawIdentifier();
+      else {
+        params += ",";
+        PP.Lex(Tok);
+        if(Tok.getIdentifierInfo())
+          params += Tok.getIdentifierInfo()->getName();
+        else
+          params += Tok.getRawIdentifier();
+      }
     }
   }
   else {

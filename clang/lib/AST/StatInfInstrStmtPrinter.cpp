@@ -183,7 +183,7 @@ void StatInfInstrStmtPrinter::VisitCaseStmt(CaseStmt *Node) {
   OS << ":" << NL;
 
   if(EnableStructuralAnalysis && enable_instrumentation)
-    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE("<< switch_case_count++ << ")" << NL;
+    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE("<< switch_case_count++ << ");" << NL;
 
   PrintStmt(Node->getSubStmt(), 0);
 }
