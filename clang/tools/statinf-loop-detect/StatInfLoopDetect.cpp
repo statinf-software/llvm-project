@@ -58,6 +58,17 @@ static cl::list<string>
       cl::desc("Recursively scans this directory to find all .c files, also add all found directories in the include path"),
       cl::cat(OptCat)
     );
+static cl::opt<bool>
+    OutputJson("json", 
+      cl::desc("Output format should be json"),
+      cl::cat(OptCat)
+    );
+static cl::opt<bool>
+    OutputXML("xml", 
+      cl::desc("Output format should be XML"),
+      cl::cat(OptCat),
+      cl::init(false)
+    );
 
                 
 namespace {
@@ -129,7 +140,35 @@ public:
     return loop_str.substr(0, loop_str.size()-2) + "\n";
   }
 
-  void print(raw_ostream &OS) {
+  string getMapToXML(map<string, SmallVector<pair<Stmt*, int64_t>>> loops) {
+    string loop_str = "";
+    size_t cnt = 0;
+    for(auto fn : loops) {
+      for(auto loop : fn.second) {
+        string loc = loop.first->getBeginLoc().printToString(*sm);
+
+        size_t pos = loc.find_first_of(":");
+        string file = loc.substr(0, pos);
+        
+        size_t pos2 = loc.find_first_of(":", pos+1);
+        string line = loc.substr(pos+1, pos2-pos-1);
+        
+        string maxcount = (loop.second == -1) ? "NOCOMP" : to_string(loop.second);
+        string exact = (loop.second == -1) ? "false" : "true";
+        
+        loop_str += "\t<loop loopId=\""+to_string(cnt++)+"\"";
+        loop_str += " line=\""+line+"\"";
+        loop_str += " source=\""+file+"\"";
+        loop_str += " exact=\""+exact+"\"";
+        loop_str += " maxcount=\""+maxcount+"\"";
+        loop_str += " totalcount=\""+maxcount+"\"";
+        loop_str += "/>\n";
+      }
+    }
+    return loop_str;
+  }
+
+  void printJson(raw_ostream &OS) {
     OS << "{\n";
     OS << "\t\"do loop\": [\n";
     OS << getMapToJson(doloop);
@@ -140,7 +179,28 @@ public:
     OS << "\t\"while loop\": [\n";
     OS << getMapToJson(whileloop);
     OS << "\t]\n";
-    OS << "}";
+    OS << "}\n";
+  }
+
+  void printXML(raw_ostream &OS) {
+    map<string, SmallVector<pair<Stmt*, int64_t>>> all_loops;
+    for(auto loop : doloop)
+      all_loops[loop.first].insert(all_loops[loop.first].end(), loop.second.begin(), loop.second.end());
+    for(auto loop : forloop)
+      all_loops[loop.first].insert(all_loops[loop.first].end(), loop.second.begin(), loop.second.end());
+    for(auto loop : whileloop)
+      all_loops[loop.first].insert(all_loops[loop.first].end(), loop.second.begin(), loop.second.end());
+
+    for(auto &loop : all_loops) {
+      std::sort(loop.second.begin(), loop.second.end(), [](const pair<Stmt*, int64_t> &a, const pair<Stmt*, int64_t> &b) {
+        return a.first->getBeginLoc() < b.first->getBeginLoc();
+      });
+    }
+
+    OS << "<?xml version=\"1.0\" ?>\n";
+    OS << "<loops>\n";
+    OS << getMapToXML(all_loops);
+    OS << "</loops>\n";
   }
 
   Optional<uint64_t> getForInitValue(ForStmt *loop, const ASTContext &Ctx) {
@@ -245,6 +305,13 @@ int main(int argc, const char **argv) {
         return 1;
     }
     ct::CommonOptionsParser &OptionsParser = ExpectedParser.get();
+
+    if(OutputJson && OutputXML) {
+      errs() << "Can't chose only one of json or xml not both";
+      return 1;
+    }
+    if(!OutputJson && !OutputXML)
+      OutputJson = true;
 
     vector<string> args{"-Wno-int-conversion", 
     "-Wno-unused-value", 
@@ -356,7 +423,10 @@ int main(int argc, const char **argv) {
       }
     }
 
-    loop_detect.print(OutFile ? *(OutFile.get()) : outs());
+    if(OutputJson)
+      loop_detect.printJson(OutFile ? *(OutFile.get()) : outs());
+    if(OutputXML)
+      loop_detect.printXML(OutFile ? *(OutFile.get()) : outs());
 
     return 0;
 }
