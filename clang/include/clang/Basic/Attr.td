@@ -699,7 +699,7 @@ def Aligned : InheritableAttr {
 
 def BytePeripheral : TypeAttr {
   let Spellings = [GCC<"byte_peripheral">];
-  let Subjects = SubjectList<[TypedefName], ErrorDiag>;
+  //let Subjects = SubjectList<[TypedefName], ErrorDiag>;
   let Documentation = [Undocumented];
   let SimpleHandler = 1;
 }
