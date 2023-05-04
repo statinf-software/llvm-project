@@ -154,7 +154,9 @@ void StatInfInstrStmtPrinter::PrintRawDecl(Decl *D) {
 
 void StatInfInstrStmtPrinter::PrintRawDeclStmt(const DeclStmt *S) {
   SmallVector<Decl *, 2> Decls(S->decls());
-  declprinter->printGroup(Decls.data(), Decls.size(), OS, Policy, IndentLevel);
+  PrintingPolicy SubPolicy(Policy);
+  SubPolicy.DeclGroupFromStmt = true;
+  declprinter->printGroup(Decls.data(), Decls.size(), OS, SubPolicy, IndentLevel);
 }
 
 void StatInfInstrStmtPrinter::VisitNullStmt(NullStmt *Node) {

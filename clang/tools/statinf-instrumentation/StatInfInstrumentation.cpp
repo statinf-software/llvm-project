@@ -72,13 +72,18 @@ static cl::opt<string>
       cl::desc("File in which storing the output"),
       cl::cat(StatInfInstrCategory)
     );
-static cl::list<string>
+static cl::opt<string>
     InputDir("input-dir", 
       cl::desc("Recursively scans this directory to find all .c files, also add all found directories in the include path"),
       cl::cat(StatInfInstrCategory)
     );
 static cl::opt<string>
-    Intermediate("intermediate-file",
+    OutputDir("output-dir", 
+      cl::desc("Recursively scans this directory to find all .c files, also add all found directories in the include path"),
+      cl::cat(StatInfInstrCategory)
+    );
+static cl::opt<bool>
+    Intermediate("debug-intermediate",
       cl::desc("Export intermediate C file"),
       cl::cat(StatInfInstrCategory)
     );
@@ -129,6 +134,58 @@ static void scandir(vfs::FileSystem &fs, StringRef dirname, cl::list<string> &di
   }
 }
 
+static error_code create_directory_recursive(StringRef dir) {
+  if(dir.empty())
+    return error_code();
+  StringRef parent_dir = dir.substr(0, dir.find_last_of("/"));
+  error_code ec = create_directory_recursive(parent_dir);
+  if(ec.value() != 0)
+    return ec;
+
+  return sys::fs::create_directory(dir);
+}
+
+static error_code processASTUnit(const string &input_file, const string &output_file, const string &intermediate_file, 
+  unique_ptr<ASTUnit> current_ast, CallGraph *cg, const vector<string> &args) {
+
+  string output_dir = output_file.substr(0, output_file.find_last_of("/"));
+  error_code ec = create_directory_recursive(output_dir);
+  if(ec.value()) {
+    errs() << output_dir << ": ";
+    return ec;
+  }
+
+  // Parse the AST to print it and add the call to the instrumentation macros
+  string new_code;
+  raw_string_ostream new_code_stream(new_code);
+  StatInfPrinterLauncher launch(new_code_stream, cg, !OptDisStructAnalysis.getValue(), !OptDisTempAnalysis.getValue());
+  launch.Initialize(current_ast->getASTContext());
+  launch.HandleTranslationUnit(current_ast->getASTContext());
+  if(Intermediate) {
+    ec.clear();
+    raw_fd_ostream ios(intermediate_file, ec);
+    if (ec) {
+      errs() << intermediate_file << ": ";
+      return ec;
+    }
+    ios << new_code << "\n";
+  }
+
+  // Finally re-preprocess to unroll StatInf instrumentation macros
+  unique_ptr<ASTUnit> final_ast = ct::buildASTFromCodeWithArgs(
+    new_code, args, intermediate_file, "statinf-instrumentation"
+  );
+  ec.clear();
+  raw_fd_ostream OutFile(output_file, ec);
+  if (ec) {
+    errs() << output_file << ": ";
+    return ec;
+  }
+  StatInfPrinterLauncher launch2(OutFile, cg, false, false);
+  launch2.Initialize(final_ast->getASTContext());
+  launch2.HandleTranslationUnit(final_ast->getASTContext());
+  return error_code();
+}
 } // namespace
 
 int main(int argc, const char **argv) {
@@ -147,6 +204,10 @@ int main(int argc, const char **argv) {
     }
     if(InstrMacroDefFilePath.empty()) {
       InstrMacroDefFilePath = "statinf_instrumentation.h";
+    }
+
+    if(!InputDir.empty() && OutputDir.empty()) {
+      OutputDir = (string)InputDir;
     }
 
     vector<string> args{"-Wno-int-conversion", 
@@ -178,19 +239,7 @@ int main(int argc, const char **argv) {
     }
 
     // Scan for additional C files and directories to put in the include paths from a given root project
-    for(string edir : InputDir) {
-      scandir(*OverlayFileSystem, edir, IncludePath, AbsolutePaths);
-    }
-
-    unique_ptr<raw_ostream> OutFile = nullptr;
-    if(!Out.empty()) {
-      error_code EC;
-      OutFile = make_unique<raw_fd_ostream>(Out, EC);
-      if (EC) {
-        errs() << EC.message() << "\n";
-        return -1;
-      }
-    }
+    scandir(*OverlayFileSystem, InputDir, IncludePath, AbsolutePaths);
 
     // Add include paths
     for(auto I : IncludePath) {
@@ -211,6 +260,8 @@ int main(int argc, const char **argv) {
 
       //Build an empty AST
     unique_ptr<ASTUnit> ast = ct::buildASTFromCode("", "empty.c");
+
+    map<StringRef, unique_ptr<ASTUnit>> ast_books;
 
     //Build all other ASTs and merge them into the empty one
     for (StringRef File : AbsolutePaths) {
@@ -244,6 +295,7 @@ int main(int argc, const char **argv) {
           return 1;
         }
       }
+      ast_books[File] = move(tmp_ast);
     }
 
     // Extract the call graph from the given entrypoint
@@ -255,33 +307,56 @@ int main(int argc, const char **argv) {
     Finder.addMatcher(entrypoint_match, &extractor);
     Finder.matchAST(ast->getASTContext());
 
-    // Parse the AST to print it and add the call to the instrumentation macros
-    string new_code;
-    raw_string_ostream new_code_stream(new_code);
-    StatInfPrinterLauncher launch(new_code_stream, &cg, !OptDisStructAnalysis.getValue(), !OptDisTempAnalysis.getValue());
-    launch.Initialize(ast->getASTContext());
-    launch.HandleTranslationUnit(ast->getASTContext());
-    if(!Intermediate.empty()) {
-      error_code EC;
-      raw_fd_ostream ios(Intermediate, EC);
-      if (EC) {
-        errs() << EC.message() << "\n";
-        return -1;
-      }
-      ios << new_code << "\n";
+    // Get input folder
+    SmallVector<char> tmp_path;
+    sys::fs::real_path(InputDir, tmp_path, true);
+    string full_input_dir_path(tmp_path.data(), tmp_path.size());
+    // Prepare output folder
+    string tmp_full_output_dir_path = *(ct::getAbsolutePath(*OverlayFileSystem, OutputDir));
+    error_code ec = sys::fs::create_directory(tmp_full_output_dir_path);
+    if(ec.value()) {
+      errs() << ec.message() << " -- " << tmp_full_output_dir_path << "\n";
+      return 1;
     }
+    sys::fs::real_path(tmp_full_output_dir_path, tmp_path, true);
+    string full_output_dir_path(tmp_path.data(), tmp_path.size());
 
-    // Finally re-preprocess to unroll StatInf instrumentation macros
-    unique_ptr<ASTUnit> final_ast = ct::buildASTFromCodeWithArgs(
-      new_code, args, "/tmp/file.c",
-      "statinf-instrumentation", PCHContainerOps
-    );
-    // unique_ptr<ASTConsumer> final_printer = CreateASTPrinter(move(OutFile), "");
-    // final_printer->Initialize(final_ast->getASTContext());
-    // final_printer->HandleTranslationUnit(final_ast->getASTContext());
-    StatInfPrinterLauncher launch2(OutFile ? *(OutFile.get()) : outs(), &cg, false, false);
-    launch2.Initialize(final_ast->getASTContext());
-    launch2.HandleTranslationUnit(final_ast->getASTContext());
+    if(ast_books.size() == 1) {
+      auto &astunit = *(ast_books.begin());
+
+      string intermediate_file;
+      if(Out.empty()) {
+        Out = astunit.first.str();
+        Out = replaceAll(Out, full_input_dir_path, full_output_dir_path);
+        Out = replaceAll(Out, ".c", ".inst.c"); //FIXME: find a way to get the extension depending on language setting 
+        intermediate_file = replaceAll(Out, ".inst.c", ".inter.c");
+      }
+      else
+        intermediate_file = replaceAll(Out, ".c", ".inter.c");
+      
+      error_code ec = processASTUnit(astunit.first.str(), Out, intermediate_file, move(astunit.second), &cg, args);
+      if(ec.value()) {
+        errs() << ec.message() << "\n";
+        return EXIT_FAILURE;
+      }
+    }
+    else {
+      for(auto &astunit : ast_books) {
+        unique_ptr<ASTUnit> &current_ast = astunit.second;
+
+        string output_file = astunit.first.str();
+        output_file = replaceAll(output_file, full_input_dir_path, full_output_dir_path);
+        output_file = replaceAll(output_file, ".c", ".inst.c"); //FIXME: find a way to get the extension depending on language setting
+
+        string intermediate_file = replaceAll(output_file, ".inst.c", ".inter.c");
+
+        error_code ec = processASTUnit(astunit.first.str(), output_file, intermediate_file, move(current_ast), &cg, args);
+        if(ec.value()) {
+          errs() << ec.message() << "\n";
+          return EXIT_FAILURE;
+        }
+      }
+    }
 
     return 0;
 }
