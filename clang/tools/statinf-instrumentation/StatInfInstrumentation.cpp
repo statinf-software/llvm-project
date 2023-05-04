@@ -69,7 +69,7 @@ static cl::opt<string>
 static cl::opt<string>
     Out(
       "o",
-      cl::desc("File in which storing the output"),
+      cl::desc("File in which storing the output. Only available if a single file is given"),
       cl::cat(StatInfInstrCategory)
     );
 static cl::opt<string>
@@ -79,7 +79,7 @@ static cl::opt<string>
     );
 static cl::opt<string>
     OutputDir("output-dir", 
-      cl::desc("Recursively scans this directory to find all .c files, also add all found directories in the include path"),
+      cl::desc("If multiple files are given their instrumented version will be stored there"),
       cl::cat(StatInfInstrCategory)
     );
 static cl::opt<bool>
