@@ -22,6 +22,7 @@
 #include "clang/AST/PrettyPrinter.h"
 #include "clang/Basic/Module.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/ADT/StringExtras.h"
 
 #include "clang/AST/StatInfInstrDeclPrinter.h"
 #include "clang/AST/StatInfInstrStmtPrinter.h"
@@ -76,6 +77,15 @@ static QualType getDeclType(Decl* D) {
   if (ValueDecl* VD = dyn_cast<ValueDecl>(D))
     return VD->getType();
   return QualType();
+}
+
+StatInfInstrDeclPrinter::StatInfInstrDeclPrinter(raw_ostream &Out, const PrintingPolicy &Policy,
+                const ASTContext &Context, CallGraph *cg, 
+                bool esa/*=true*/, bool eta/*=true*/, StringRef instr_file/*=""*/, StringRef entrypoint/*="main"*/,
+                unsigned Indentation/* = 0*/, bool PrintInstantiation/* = false*/)
+        : Out(Out), Policy(Policy), Context(Context), callgraph(cg), 
+        EnableStructuralAnalysis(esa), EnableTemporalAnalysis(eta), fullpath_instr_file(instr_file),
+        entrypoint_func_name(entrypoint), Indentation(Indentation),PrintInstantiation(PrintInstantiation) {
 }
 
 raw_ostream& StatInfInstrDeclPrinter::Indent(unsigned Indentation) {
@@ -140,10 +150,9 @@ void StatInfInstrDeclPrinter::printDeclType(QualType T, StringRef DeclName, bool
 
 void StatInfInstrDeclPrinter::ProcessDeclGroup(SmallVectorImpl<Decl*>& Decls) {
   this->Indent();
-  Decl::printGroup(Decls.data(), Decls.size(), Out, Policy, Indentation);
+  printGroup(Decls.data(), Decls.size(), Out, Policy, Indentation);
   Out << ";\n";
   Decls.clear();
-
 }
 
 void StatInfInstrDeclPrinter::Print(AccessSpecifier AS) {
@@ -357,9 +366,17 @@ void StatInfInstrDeclPrinter::VisitDeclContext(DeclContext *DC, bool Indent) {
 void StatInfInstrDeclPrinter::VisitTranslationUnitDecl(TranslationUnitDecl *D) {
   if(callgraph) {
     for(Decl *d : D->decls()) {
-      if(isa<FunctionDecl>(d) && callgraph->getNode(d)) {
+      if(isa<FunctionDecl>(d) && callgraph->getNode(d->getAsFunction()->getName())) {
         first_function_with_instrumentation = dyn_cast<FunctionDecl>(d);
         break;
+      }
+    }
+    for(Decl *d : D->decls()) {
+      if(FunctionDecl *fn = d->getAsFunction()) {
+        if(fn->getName().equals(entrypoint_func_name)) {
+          astunit_contains_entrypoint = true;
+          break;
+        }
       }
     }
   }
@@ -455,7 +472,8 @@ static void printExplicitSpecifier(ExplicitSpecifier ES, llvm::raw_ostream &Out,
 void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
   if((EnableStructuralAnalysis || EnableTemporalAnalysis) && first_function_with_instrumentation == D) {
     Out << "#include \""<< fullpath_instr_file << "\"" << "\n";
-    Out << "STATINF_GLOBAL_INIT();\n";
+    if(astunit_contains_entrypoint)
+      Out << "STATINF_GLOBAL_INIT();\n";
   }
   if (!D->getDescribedFunctionTemplate() &&
       !D->isFunctionTemplateSpecialization())
@@ -669,7 +687,7 @@ void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
           - structural: the function is in the call graph
           - temporal: the function is the entrypoint given by the user
         */
-        if(EnableStructuralAnalysis && ((callgraph->getNode(D) || callgraph->getNode(D->getFirstDecl()) || callgraph->getNode(D->getCanonicalDecl()))))
+        if(EnableStructuralAnalysis && callgraph->getNode(D->getName()))
           P.SetEnableInstrumentation();
         if(EnableTemporalAnalysis && D->getName() == entrypoint_func_name.str())
           P.SetEnableInstrumentation();
@@ -744,10 +762,6 @@ void StatInfInstrDeclPrinter::VisitLabelDecl(LabelDecl *D) {
 }
 
 void StatInfInstrDeclPrinter::VisitVarDecl(VarDecl *D) {
-  // If we don't want the type and other specifiers, and if there not initialiser, we don't want to print the variable alone
-  if(Policy.SuppressSpecifiers && !D->getInit())
-    return;
-
   prettyPrintPragmas(D);
 
   QualType T = D->getTypeSourceInfo()
@@ -1714,7 +1728,6 @@ void StatInfInstrDeclPrinter::VisitNonTypeTemplateParmDecl(
 void StatInfInstrDeclPrinter::printGroup(Decl** Begin, unsigned NumDecls,
                       raw_ostream &Out, const PrintingPolicy &pol,
                       unsigned Indentation) {
-
   PrintingPolicy bk(Policy);
   Policy = pol;
 
@@ -1732,19 +1745,20 @@ void StatInfInstrDeclPrinter::printGroup(Decl** Begin, unsigned NumDecls,
   bool isFirst = true;
   for ( ; Begin != End; ++Begin) {
     if (isFirst) {
-      // if(TD)
-      //   SubPolicy.IncludeTagDefinition = true;
-      // SubPolicy.SuppressSpecifiers = false;
+      if(!Policy.DeclGroupFromStmt) {
+        if(TD)
+          Policy.IncludeTagDefinition = true;
+        Policy.SuppressSpecifiers = false;
+      }
       isFirst = false;
-    } 
-    else {
+    } else {
       if (!isFirst) Out << ", ";
       Policy.IncludeTagDefinition = false;
       Policy.SuppressSpecifiers = true;
     }
+
     Visit(*Begin);
   }
-
   Policy = bk;
 }
 } //namespace

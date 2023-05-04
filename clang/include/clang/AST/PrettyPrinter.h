@@ -75,7 +75,7 @@ struct PrintingPolicy {
         PrintCanonicalTypes(false), PrintInjectedClassNameWithArguments(true),
         UsePreferredNames(true), AlwaysIncludeTypeForTemplateArgument(false),
         CleanUglifiedParameters(false), EntireContentsOfLargeArray(true),
-        UseEnumerators(true) {}
+        UseEnumerators(true), DeclGroupFromStmt(false) {}
 
   /// Adjust this printing policy for cases where it's known that we're
   /// printing C++ code (for instance, if AST dumping reaches a C++-only
@@ -300,6 +300,9 @@ struct PrintingPolicy {
 
   /// Do not print the type of variable, even on a VarDecl
   unsigned SuppressQualType : 1;
+
+  //Are we printing a group of Decl from the Stmt
+  unsigned DeclGroupFromStmt : 1;
 };
 
 } // end namespace clang

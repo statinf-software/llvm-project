@@ -28,6 +28,7 @@ namespace clang {
     StringRef entrypoint_func_name;
 
     FunctionDecl *first_function_with_instrumentation = nullptr;
+    bool astunit_contains_entrypoint = false;
 
     raw_ostream& Indent() { return Indent(Indentation); }
     raw_ostream& Indent(unsigned Indentation);
@@ -53,10 +54,7 @@ namespace clang {
     StatInfInstrDeclPrinter(raw_ostream &Out, const PrintingPolicy &Policy,
                 const ASTContext &Context, CallGraph *cg, 
                 bool esa=true, bool eta=true, StringRef instr_file="", StringRef entrypoint="main",
-                unsigned Indentation = 0, bool PrintInstantiation = false)
-        : Out(Out), Policy(Policy), Context(Context), callgraph(cg), 
-        EnableStructuralAnalysis(esa), EnableTemporalAnalysis(eta), fullpath_instr_file(instr_file),
-        entrypoint_func_name(entrypoint), Indentation(Indentation),PrintInstantiation(PrintInstantiation) {}
+                unsigned Indentation = 0, bool PrintInstantiation = false);
 
     void VisitDeclContext(DeclContext *DC, bool Indent = true);
 
@@ -125,7 +123,6 @@ namespace clang {
     void printGroup(Decl** Begin, unsigned NumDecls,
                       raw_ostream &Out, const PrintingPolicy &Policy,
                       unsigned Indentation);
-
     void printType(QualType T, PrintingPolicy SubPolicy, Twine PlaceHolder);
   };
 }

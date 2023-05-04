@@ -15,6 +15,137 @@
 #include "clang/AST/StatInfInstrDeclPrinter.h"
 namespace clang {
 
+namespace {
+  class CheckCondContainsCallExpr : public ConstStmtVisitor<CheckCondContainsCallExpr> {
+    public:
+      bool contains_callexpr = false;
+
+      void VisitBinaryOperator(BinaryOperator *Node) {
+        VisitExpr(Node->getLHS());
+        VisitExpr(Node->getRHS());
+      }
+
+      void VisitCallExpr(Expr *e) {
+        //for (unsigned i = 0, e = Call->getNumArgs(); i != e; ++i) {
+        //  if (isa<CXXDefaultArgExpr>(Call->getArg(i))) {
+        //    // Don't print any defaulted arguments
+        //    break;
+        //  }
+
+        //  if (i) OS << ", ";
+        //  PrintExpr(Call->getArg(i));
+        //}
+        contains_callexpr = true;
+      }
+
+      void VisitConstantExpr(ConstantExpr *Node) {
+        VisitExpr(Node->getSubExpr());
+      }
+
+      void VisitParenExpr(ParenExpr *Node) {
+        VisitExpr(Node->getSubExpr());
+      }
+
+      void VisitUnaryOperator(UnaryOperator *Node) {
+        VisitExpr(Node->getSubExpr());
+      }
+
+      // Do I need to check the arguments here?
+      // bool VisitUnaryExprOrTypeTraitExpr(UnaryExprOrTypeTraitExpr *Node) {
+      //   if (Node->isArgumentType()) {
+      //     OS << '(';
+      //     OS << Node->getArgumentType().getAsString();
+      //     OS << ')';
+      //   } else {
+      //     PrintExpr(Node->getArgumentExpr());
+      //   }
+      // }
+
+      // Can _Generic(..) get something else than a variable?
+      // C11
+      // bool VisitGenericSelectionExpr(GenericSelectionExpr *Node) {
+      //   PrintExpr(Node->getControllingExpr());
+      //   for (const GenericSelectionExpr::Association Assoc : Node->associations()) {
+      //     OS << ", ";
+      //     QualType T = Assoc.getType();
+      //     if (T.isNull())
+      //       OS << "default";
+      //     else
+      //       T.print(OS, Policy);
+      //     OS << ": ";
+      //     PrintExpr(Assoc.getAssociationExpr());
+      //   }
+      // }
+
+      void VisitArraySubscriptExpr(ArraySubscriptExpr *Node) {
+        VisitExpr(Node->getLHS());
+        VisitExpr(Node->getRHS());
+      }
+
+      void VisitMatrixSubscriptExpr(MatrixSubscriptExpr *Node) {
+        VisitExpr(Node->getBase());
+        VisitExpr(Node->getRowIdx());
+        VisitExpr(Node->getColumnIdx());
+      }
+
+      // Not sure if I need to go into base
+      // bool VisitExtVectorElementExpr(ExtVectorElementExpr *Node) {
+      //   PrintExpr(Node->getBase());
+      // }
+
+      void VisitCStyleCastExpr(CStyleCastExpr *Node) {
+        VisitExpr(Node->getSubExpr());
+      }
+
+      void VisitCompoundLiteralExpr(CompoundLiteralExpr *Node) {
+         VisitExpr(Node->getInitializer());
+      }
+
+      void VisitImplicitCastExpr(ImplicitCastExpr *Node) {
+        VisitExpr(Node->getSubExpr());
+      }
+
+      void VisitCompoundAssignOperator(CompoundAssignOperator *Node) {
+        VisitExpr(Node->getLHS());
+        VisitExpr(Node->getRHS());
+      }
+
+      void VisitConditionalOperator(ConditionalOperator *Node) {
+        VisitExpr(Node->getCond());
+        VisitExpr(Node->getLHS());
+        VisitExpr(Node->getRHS());
+      }
+
+      // GNU extensions.
+
+      void VisitBinaryConditionalOperator(BinaryConditionalOperator *Node) {
+        VisitExpr(Node->getCommon());
+        VisitExpr(Node->getFalseExpr());
+      }
+
+      // bool VisitAddrLabelExpr(AddrLabelExpr *Node) {
+      // }
+
+      //Can I have a compoundStmt here?
+      // bool VisitStmtExpr(StmtExpr *E) {
+      //   PrintRawCompoundStmt(E->getSubStmt());
+      // }
+
+      void VisitChooseExpr(ChooseExpr *Node) {
+        VisitExpr(Node->getCond());
+        VisitExpr(Node->getLHS());
+        VisitExpr(Node->getRHS());
+      }
+
+      void VisitParenListExpr(ParenListExpr* Node) {
+        for (unsigned i = 0, e = Node->getNumExprs(); i != e; ++i) {
+          VisitExpr(Node->getExpr(i));
+        }
+      }
+
+  };
+}
+
 //===----------------------------------------------------------------------===//
 //  Stmt printing methods.
 //===----------------------------------------------------------------------===//
@@ -154,7 +285,9 @@ void StatInfInstrStmtPrinter::PrintRawDecl(Decl *D) {
 
 void StatInfInstrStmtPrinter::PrintRawDeclStmt(const DeclStmt *S) {
   SmallVector<Decl *, 2> Decls(S->decls());
-  declprinter->printGroup(Decls.data(), Decls.size(), OS, Policy, IndentLevel);
+  PrintingPolicy SubPolicy(Policy);
+  SubPolicy.DeclGroupFromStmt = true;
+  declprinter->printGroup(Decls.data(), Decls.size(), OS, SubPolicy, IndentLevel);
 }
 
 void StatInfInstrStmtPrinter::VisitNullStmt(NullStmt *Node) {
@@ -253,8 +386,15 @@ void StatInfInstrStmtPrinter::PrintRawIfStmt(IfStmt *If) {
     PrintInitStmt(If->getInit(), 4);
   if (const DeclStmt *DS = If->getConditionVariableDeclStmt())
     PrintRawDeclStmt(DS);
-  else
-    PrintExpr(If->getCond());
+  else {
+    Expr *cond = If->getCond();
+    CheckCondContainsCallExpr checker;
+    checker.VisitExpr(cond);
+    if(checker.contains_callexpr) {
+      llvm::errs() << "WARNING: a If-statement contains a function call in its condition, there will be some errors when matching with the bitstream\n";
+    }
+    PrintExpr(cond);
+  }
   OS << ')';
 
   if (auto *CS = dyn_cast<CompoundStmt>(If->getThen())) {
@@ -339,8 +479,15 @@ void StatInfInstrStmtPrinter::VisitWhileStmt(WhileStmt *Node) {
   Indent() << "while (";
   if (const DeclStmt *DS = Node->getConditionVariableDeclStmt())
     PrintRawDeclStmt(DS);
-  else
-    PrintExpr(Node->getCond());
+  else {
+    Expr *cond = Node->getCond();
+    CheckCondContainsCallExpr checker;
+    checker.VisitExpr(cond);
+    if(checker.contains_callexpr) {
+      llvm::errs() << "WARNING: a While-statement contains a function call in its condition, there will be some errors when matching with the bitstream\n";
+    }
+    PrintExpr(cond);
+  }
   OS << ")" << NL;
   if(isa<CompoundStmt>(Node->getBody())) {
     SetEnterLoopBody();
@@ -369,7 +516,13 @@ void StatInfInstrStmtPrinter::VisitDoStmt(DoStmt *Node) {
   }
 
   OS << "while (";
-  PrintExpr(Node->getCond());
+  Expr *cond = Node->getCond();
+  CheckCondContainsCallExpr checker;
+  checker.VisitExpr(cond);
+  if(checker.contains_callexpr) {
+    llvm::errs() << "WARNING: a DOWhile-statement contains a function call in its condition, there will be some errors when matching with the bitstream\n";
+  }
+  PrintExpr(cond);
   OS << ");" << NL;
 }
 
@@ -378,16 +531,36 @@ void StatInfInstrStmtPrinter::VisitForStmt(ForStmt *Node) {
   
   Policy.SuppressSpecifiers = false;
   Indent() << "for (";
-  if (Node->getInit())
+  if (Node->getInit()) {
+    // Expr *init = Node->getInit(); //getInit is a Stmt not an Expr
+    // CheckCondContainsCallExpr checker;
+    // checker.Visit(init);
+    // if(checker.contains_callexpr) {
+    //   llvm::errs() << "WARNING: a For-statement contains a function call in its initialization, there will be some errors when matching with the bitstream\n";
+    // }
     PrintInitStmt(Node->getInit(), 5);
+  }
   else
     OS << (Node->getCond() ? "; " : ";");
-  if (Node->getCond())
-    PrintExpr(Node->getCond());
+  if (Node->getCond()) {
+    Expr *cond = Node->getCond();
+    CheckCondContainsCallExpr checker;
+    checker.VisitExpr(cond);
+    if(checker.contains_callexpr) {
+      llvm::errs() << "WARNING: a For-statement contains a function call in its condition, there will be some errors when matching with the bitstream\n";
+    }
+    PrintExpr(cond);
+  }
   OS << ";";
   if (Node->getInc()) {
     OS << " ";
-    PrintExpr(Node->getInc());
+    Expr *inc = Node->getInc();
+    CheckCondContainsCallExpr checker;
+    checker.VisitExpr(inc);
+    if(checker.contains_callexpr) {
+      llvm::errs() << "WARNING: a For-statement contains a function call in its incrementation, there will be some errors when matching with the bitstream\n";
+    }
+    PrintExpr(inc);
   }
   OS << ")";
 

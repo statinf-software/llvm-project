@@ -23,6 +23,13 @@ public:
   /// \brief Kind of error when importing an AST component.
   enum ErrorKind {
     NameConflict,         /// Naming ambiguity (likely ODR violation).
+    UnsupportedType,
+    UnsupportedDecl,
+    UnsupportedStmt,
+    UnsupportedExpr,
+    UnsupportedDeclParts,
+    UnsupportedImportDecl,
+    UnsupportedCastExpr,
     UnsupportedConstruct, /// Not supported node or case.
     Unknown               /// Other error.
   };
@@ -31,13 +38,16 @@ public:
 
   static char ID;
 
-  ASTImportError() : Error(Unknown) {}
+  std::string additional_msg;
+
+  ASTImportError(const std::string &am="") : Error(Unknown), additional_msg(am) {}
   ASTImportError(const ASTImportError &Other) : Error(Other.Error) {}
   ASTImportError &operator=(const ASTImportError &Other) {
     Error = Other.Error;
+    additional_msg = Other.additional_msg;
     return *this;
   }
-  ASTImportError(ErrorKind Error) : Error(Error) {}
+  ASTImportError(ErrorKind Error,const std::string &am="") : Error(Error), additional_msg(am) {}
 
   std::string toString() const;
 

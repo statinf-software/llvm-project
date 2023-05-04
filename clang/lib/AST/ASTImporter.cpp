@@ -87,16 +87,41 @@ namespace clang {
 
   std::string ASTImportError::toString() const {
     // FIXME: Improve error texts.
+    std::string msg = "";
     switch (Error) {
     case NameConflict:
-      return "NameConflict";
+      msg = "NameConflict";
+      break;
+    case UnsupportedType:
+      msg = "UnsupportedType";
+      break;
     case UnsupportedConstruct:
-      return "UnsupportedConstruct";
+      msg = "UnsupportedConstruct";
+      break;
+    case UnsupportedDecl:
+      msg = "UnsupportedDecl";
+      break;
+    case UnsupportedStmt:
+      msg = "UnsupportedStmt";
+      break;
+    case UnsupportedExpr:
+      msg = "UnsupportedExpr";
+      break;
+    case UnsupportedDeclParts:
+      msg = "UnsupportedDeclParts";
+      break;
+    case UnsupportedImportDecl:
+      msg = "UnsupportedImportDecl";
+      break;
+    case UnsupportedCastExpr:
+      msg = "UnsupportedCastExpr";
+      break;
     case Unknown:
-      return "Unknown error";
+      msg = "Unknown error";
     }
-    llvm_unreachable("Invalid error code.");
-    return "Invalid error code.";
+    if(!additional_msg.empty())
+      msg += " -- "+additional_msg;
+    return msg;
   }
 
   void ASTImportError::log(raw_ostream &OS) const { OS << toString(); }
@@ -690,6 +715,7 @@ namespace clang {
     ExpectedStmt VisitTypeTraitExpr(TypeTraitExpr *E);
     ExpectedStmt VisitCXXTypeidExpr(CXXTypeidExpr *E);
     ExpectedStmt VisitCXXFoldExpr(CXXFoldExpr *E);
+    ExpectedStmt VisitRecoveryExpr(RecoveryExpr *E);
 
     // Helper for chaining together multiple imports. If an error is detected,
     // subsequent imports will return default constructed nodes, so that failure
@@ -1069,7 +1095,8 @@ using namespace clang;
 ExpectedType ASTNodeImporter::VisitType(const Type *T) {
   Importer.FromDiag(SourceLocation(), diag::err_unsupported_ast_node)
     << T->getTypeClassName();
-  return make_error<ASTImportError>(ASTImportError::UnsupportedConstruct);
+    llvm::errs() << "----> " << T->getTypeClassName() << "\n";
+  return make_error<ASTImportError>(ASTImportError::UnsupportedType);
 }
 
 ExpectedType ASTNodeImporter::VisitAtomicType(const AtomicType *T){
@@ -1720,7 +1747,7 @@ Error ASTNodeImporter::ImportDeclParts(
       if (RT && RT->getDecl() == D) {
         Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
             << D->getDeclKindName();
-        return make_error<ASTImportError>(ASTImportError::UnsupportedConstruct);
+        return make_error<ASTImportError>(ASTImportError::UnsupportedDeclParts);
       }
     }
   }
@@ -2243,13 +2270,15 @@ bool ASTNodeImporter::IsStructuralMatch(Decl *From, Decl *To, bool Complain) {
 ExpectedDecl ASTNodeImporter::VisitDecl(Decl *D) {
   Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
     << D->getDeclKindName();
-  return make_error<ASTImportError>(ASTImportError::UnsupportedConstruct);
+  llvm::errs() << "===> " << D->getDeclKindName() << "\n";
+  return make_error<ASTImportError>(ASTImportError::UnsupportedDecl);
 }
 
 ExpectedDecl ASTNodeImporter::VisitImportDecl(ImportDecl *D) {
   Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
       << D->getDeclKindName();
-  return make_error<ASTImportError>(ASTImportError::UnsupportedConstruct);
+  llvm::errs() << "==2=> " << D->getDeclKindName() << "\n";
+  return make_error<ASTImportError>(ASTImportError::UnsupportedImportDecl);
 }
 
 ExpectedDecl ASTNodeImporter::VisitEmptyDecl(EmptyDecl *D) {
@@ -6279,7 +6308,7 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
 ExpectedStmt ASTNodeImporter::VisitStmt(Stmt *S) {
   Importer.FromDiag(S->getBeginLoc(), diag::err_unsupported_ast_node)
       << S->getStmtClassName();
-  return make_error<ASTImportError>(ASTImportError::UnsupportedConstruct);
+  return make_error<ASTImportError>(ASTImportError::UnsupportedStmt);
 }
 
 
@@ -6809,7 +6838,23 @@ ExpectedStmt ASTNodeImporter::VisitObjCAutoreleasePoolStmt(
 ExpectedStmt ASTNodeImporter::VisitExpr(Expr *E) {
   Importer.FromDiag(E->getBeginLoc(), diag::err_unsupported_ast_node)
       << E->getStmtClassName();
-  return make_error<ASTImportError>(ASTImportError::UnsupportedConstruct);
+      llvm::errs() << "------------------------> " << E->getStmtClassName() << "\n";
+  return make_error<ASTImportError>(ASTImportError::UnsupportedExpr, E->getStmtClassName());
+}
+
+ExpectedStmt ASTNodeImporter::VisitRecoveryExpr(RecoveryExpr *E) {
+  Error Err = Error::success();
+  auto ToType = importChecked(Err, E->getType());
+  auto BLoc = importChecked(Err, E->getBeginLoc());
+  auto ELoc = importChecked(Err, E->getEndLoc());
+
+  std::vector<Expr *> ToSubExprs(E->subExpressions().size());
+  for(auto se : E->subExpressions()) {
+    auto Tose = importChecked(Err, se);
+    ToSubExprs.push_back(Tose);
+  }
+  
+  return RecoveryExpr::Create(Importer.getToContext(), ToType, BLoc, ELoc, ArrayRef<Expr*>(ToSubExprs));
 }
 
 ExpectedStmt ASTNodeImporter::VisitSourceLocExpr(SourceLocExpr *E) {
@@ -7471,7 +7516,7 @@ ExpectedStmt ASTNodeImporter::VisitExplicitCastExpr(ExplicitCastExpr *E) {
   }
   default:
     llvm_unreachable("Cast expression of unsupported type!");
-    return make_error<ASTImportError>(ASTImportError::UnsupportedConstruct);
+    return make_error<ASTImportError>(ASTImportError::UnsupportedCastExpr);
   }
 }
 
@@ -8866,6 +8911,17 @@ TranslationUnitDecl *ASTImporter::GetFromTU(Decl *ToD) {
   return FromDPos->second->getTranslationUnitDecl();
 }
 
+static bool DeclHasAttr(Decl *D, const Attr *attr) {
+  switch(attr->getKind()) {
+#define ATTR(X) case attr::X: \
+  return D->hasAttr<X##Attr>();\
+  break;
+#include "clang/Basic/AttrList.inc"
+  default:
+    return false;
+  }
+}
+
 Expected<Decl *> ASTImporter::Import(Decl *FromD) {
   if (!FromD)
     return nullptr;
@@ -9003,11 +9059,13 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
 
   if (FromD->hasAttrs())
     for (const Attr *FromAttr : FromD->getAttrs()) {
-      auto ToAttrOrErr = Import(FromAttr);
-      if (ToAttrOrErr)
-        ToD->addAttr(*ToAttrOrErr);
-      else
-        return ToAttrOrErr.takeError();
+      if(!DeclHasAttr(ToD, FromAttr)) {
+        auto ToAttrOrErr = Import(FromAttr);
+        if (ToAttrOrErr)
+          ToD->addAttr(*ToAttrOrErr);
+        else
+          return ToAttrOrErr.takeError();
+      }
     }
 
   // Notify subclasses.

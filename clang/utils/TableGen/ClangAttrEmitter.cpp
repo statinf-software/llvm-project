@@ -2759,6 +2759,7 @@ static void emitAttributes(RecordKeeper &Records, raw_ostream &OS,
       OS << "  A->Inherited = Inherited;\n";
       OS << "  A->IsPackExpansion = IsPackExpansion;\n";
       OS << "  A->setImplicit(Implicit);\n";
+      OS << "  A->setAttributeSpellingListIndex(getAttributeSpellingListIndex());\n";
       if (DelayedArgs) {
         OS << "  A->setDelayedArgs(C, ";
         DelayedArgs->writeCloneArgs(OS);

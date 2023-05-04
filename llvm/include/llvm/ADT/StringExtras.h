@@ -388,6 +388,8 @@ std::string convertToSnakeFromCamelCase(StringRef input);
 std::string convertToCamelFromSnakeCase(StringRef input,
                                         bool capitalizeFirst = false);
 
+std::string replaceAll(std::string str, const std::string& from, const std::string& to);
+
 namespace detail {
 
 template <typename IteratorT>
