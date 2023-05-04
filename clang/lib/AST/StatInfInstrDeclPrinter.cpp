@@ -470,9 +470,10 @@ static void printExplicitSpecifier(ExplicitSpecifier ES, llvm::raw_ostream &Out,
 }
 
 void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
-  if(astunit_contains_entrypoint && (EnableStructuralAnalysis || EnableTemporalAnalysis) && first_function_with_instrumentation == D) {
+  if((EnableStructuralAnalysis || EnableTemporalAnalysis) && first_function_with_instrumentation == D) {
     Out << "#include \""<< fullpath_instr_file << "\"" << "\n";
-    Out << "STATINF_GLOBAL_INIT();\n";
+    if(astunit_contains_entrypoint)
+      Out << "STATINF_GLOBAL_INIT();\n";
   }
   if (!D->getDescribedFunctionTemplate() &&
       !D->isFunctionTemplateSpecialization())
