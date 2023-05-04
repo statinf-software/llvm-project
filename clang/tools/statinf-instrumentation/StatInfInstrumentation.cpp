@@ -238,8 +238,18 @@ int main(int argc, const char **argv) {
       AbsolutePaths.push_back(move(*AbsPath));
     }
 
+    if(!InputDir.empty() && !AbsolutePaths.empty()) {
+      errs() << "Can't provide a list of files and an input-dir to scan for source files.\n";
+      return 1;
+    }
+
     // Scan for additional C files and directories to put in the include paths from a given root project
     scandir(*OverlayFileSystem, InputDir, IncludePath, AbsolutePaths);
+
+    if(AbsolutePaths.size() > 1 && !Out.empty()) {
+      errs() << "Can't provide the -o option if there is more that one source file to handle, use --output-dir instead\n";
+      return 1;
+    }
 
     // Add include paths
     for(auto I : IncludePath) {
@@ -307,27 +317,12 @@ int main(int argc, const char **argv) {
     Finder.addMatcher(entrypoint_match, &extractor);
     Finder.matchAST(ast->getASTContext());
 
-    // Get input folder
-    SmallVector<char> tmp_path;
-    sys::fs::real_path(InputDir, tmp_path, true);
-    string full_input_dir_path(tmp_path.data(), tmp_path.size());
-    // Prepare output folder
-    string tmp_full_output_dir_path = *(ct::getAbsolutePath(*OverlayFileSystem, OutputDir));
-    error_code ec = sys::fs::create_directory(tmp_full_output_dir_path);
-    if(ec.value()) {
-      errs() << ec.message() << " -- " << tmp_full_output_dir_path << "\n";
-      return 1;
-    }
-    sys::fs::real_path(tmp_full_output_dir_path, tmp_path, true);
-    string full_output_dir_path(tmp_path.data(), tmp_path.size());
-
     if(ast_books.size() == 1) {
       auto &astunit = *(ast_books.begin());
 
       string intermediate_file;
       if(Out.empty()) {
         Out = astunit.first.str();
-        Out = replaceAll(Out, full_input_dir_path, full_output_dir_path);
         Out = replaceAll(Out, ".c", ".inst.c"); //FIXME: find a way to get the extension depending on language setting 
         intermediate_file = replaceAll(Out, ".inst.c", ".inter.c");
       }
@@ -341,11 +336,42 @@ int main(int argc, const char **argv) {
       }
     }
     else {
+      // Get input folder
+      string full_input_dir_path;
+      if(!InputDir.empty()) {
+        SmallVector<char> tmp_path;
+        sys::fs::real_path(InputDir, tmp_path, true);
+        full_input_dir_path = string(tmp_path.data(), tmp_path.size());
+      }
+      // Prepare output folder
+      string full_output_dir_path;
+      if(!OutputDir.empty()) {
+        string tmp_full_output_dir_path = *(ct::getAbsolutePath(*OverlayFileSystem, OutputDir));
+        error_code ec = sys::fs::create_directory(tmp_full_output_dir_path);
+        if(ec.value()) {
+          errs() << ec.message() << " -- " << tmp_full_output_dir_path << "\n";
+          return 1;
+        }
+        SmallVector<char> tmp_path;
+        sys::fs::real_path(tmp_full_output_dir_path, tmp_path, true);
+        full_output_dir_path = string(tmp_path.data(), tmp_path.size());
+      }
+
       for(auto &astunit : ast_books) {
         unique_ptr<ASTUnit> &current_ast = astunit.second;
 
+        // Get input folder
+        if(InputDir.empty()) {
+          string current_file = astunit.first.str();
+          SmallVector<char> tmp_path;
+          sys::fs::real_path(current_file.substr(0, current_file.find_last_of("/")), tmp_path, true);
+          full_input_dir_path = string(tmp_path.data(), tmp_path.size());
+        }
+
+
         string output_file = astunit.first.str();
-        output_file = replaceAll(output_file, full_input_dir_path, full_output_dir_path);
+        if(!full_output_dir_path.empty())
+          output_file = replaceAll(output_file, full_input_dir_path, full_output_dir_path);
         output_file = replaceAll(output_file, ".c", ".inst.c"); //FIXME: find a way to get the extension depending on language setting
 
         string intermediate_file = replaceAll(output_file, ".inst.c", ".inter.c");
