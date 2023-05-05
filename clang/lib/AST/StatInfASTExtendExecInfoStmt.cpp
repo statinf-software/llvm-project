@@ -28,6 +28,11 @@ StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::Visit(Stmt
     return StatInfASTExtendExecInfoStmtParent::Visit(S);
 }
 
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitExpr(Expr *S) {
+    S->incrExec();
+    return StatInfASTExtendExecInfoStmtParent::VisitExpr(S);
+}
+
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCompoundStmt(CompoundStmt *node) {
     for (auto *I : node->body()) {
         StatInfASTExtendExecInfoStmt_ns::STATUS status = Visit(I);
@@ -139,12 +144,15 @@ StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitSwitc
 
         }
     }
+    declvisitor->consumeNbits(cases.size());
     return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
 }
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCallExpr(CallExpr *call) {
     VisitCallArgs(call);
-    declvisitor->Visit(call->getCalleeDecl());
+    if(call->getCalleeDecl())
+      declvisitor->Visit(call->getCalleeDecl());
+    //if the CalleDecl is null it most likely because it's an indirect call to an adress
     return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
 }
 
@@ -237,10 +245,6 @@ StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCA
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCAutoreleasePoolStmt(ObjCAutoreleasePoolStmt *Node) {
   return Visit(dyn_cast<CompoundStmt>(Node->getSubStmt()));
 }
-
-//===----------------------------------------------------------------------===//
-//  Expr printing methods.
-//===----------------------------------------------------------------------===//
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitConstantExpr(ConstantExpr *Node) {
   return Visit(Node->getSubExpr());
@@ -544,24 +548,20 @@ StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXRe
   return Visit(const_cast<Expr*>(Decomposed.RHS));
 }
 
-StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXNamedCastExpr(CXXNamedCastExpr *Node) {
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXStaticCastExpr(CXXStaticCastExpr *Node) {
   return Visit(Node->getSubExpr());
 }
 
-StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXStaticCastExpr(CXXStaticCastExpr *Node) {
-  return VisitCXXNamedCastExpr(Node);
-}
-
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXDynamicCastExpr(CXXDynamicCastExpr *Node) {
-  return VisitCXXNamedCastExpr(Node);
+  return Visit(Node->getSubExpr());
 }
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXReinterpretCastExpr(CXXReinterpretCastExpr *Node) {
-  return VisitCXXNamedCastExpr(Node);
+  return Visit(Node->getSubExpr());
 }
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXConstCastExpr(CXXConstCastExpr *Node) {
-  return VisitCXXNamedCastExpr(Node);
+  return Visit(Node->getSubExpr());
 }
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitBuiltinBitCastExpr(BuiltinBitCastExpr *Node) {
@@ -569,7 +569,7 @@ StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitBuilt
 }
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXAddrspaceCastExpr(CXXAddrspaceCastExpr *Node) {
-  return VisitCXXNamedCastExpr(Node);
+  return Visit(Node->getSubExpr());
 }
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXTypeidExpr(CXXTypeidExpr *Node) {
@@ -845,6 +845,547 @@ StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitRecov
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitAsTypeExpr(AsTypeExpr *Node) {
   return Visit(Node->getSrcExpr());
+}
+
+//--------------------------------
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitNullStmt(NullStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitDeclStmt(DeclStmt *Node) {
+  for(Decl * d : Node->decls()) {
+    declvisitor->Visit(d);
+  }
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCForCollectionStmt(ObjCForCollectionStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXForRangeStmt(CXXForRangeStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitMSAsmStmt(MSAsmStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCAtFinallyStmt(ObjCAtFinallyStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCAtCatchStmt (ObjCAtCatchStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCAvailabilityCheckExpr(ObjCAvailabilityCheckExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXCatchStmt(CXXCatchStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXTryStmt(CXXTryStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitSEHTryStmt(SEHTryStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitSEHExceptStmt(SEHExceptStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitSEHFinallyStmt(SEHFinallyStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitSEHLeaveStmt(SEHLeaveStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitPragmaLiebherrStmt(PragmaLiebherrStmt *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+//===----------------------------------------------------------------------===//
+//  OpenMP directives printing methods
+//===----------------------------------------------------------------------===//
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPCanonicalLoop(OMPCanonicalLoop *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPMetaDirective(OMPMetaDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPParallelDirective(OMPParallelDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPSimdDirective(OMPSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTileDirective(OMPTileDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPUnrollDirective(OMPUnrollDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPForDirective(OMPForDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPForSimdDirective(OMPForSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPSectionsDirective(OMPSectionsDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPSectionDirective(OMPSectionDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPSingleDirective(OMPSingleDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPMasterDirective(OMPMasterDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPCriticalDirective(OMPCriticalDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPParallelForDirective(OMPParallelForDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPParallelForSimdDirective(
+    OMPParallelForSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPParallelMasterDirective(
+    OMPParallelMasterDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPParallelMaskedDirective(
+    OMPParallelMaskedDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPParallelSectionsDirective(
+    OMPParallelSectionsDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTaskDirective(OMPTaskDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTaskyieldDirective(OMPTaskyieldDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPBarrierDirective(OMPBarrierDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTaskwaitDirective(OMPTaskwaitDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTaskgroupDirective(OMPTaskgroupDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPFlushDirective(OMPFlushDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPDepobjDirective(OMPDepobjDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPScanDirective(OMPScanDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPOrderedDirective(OMPOrderedDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPAtomicDirective(OMPAtomicDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetDirective(OMPTargetDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetDataDirective(OMPTargetDataDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetEnterDataDirective(
+    OMPTargetEnterDataDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetExitDataDirective(
+    OMPTargetExitDataDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetParallelDirective(
+    OMPTargetParallelDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetParallelForDirective(
+    OMPTargetParallelForDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTeamsDirective(OMPTeamsDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPCancellationPointDirective(
+    OMPCancellationPointDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPCancelDirective(OMPCancelDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTaskLoopDirective(OMPTaskLoopDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTaskLoopSimdDirective(
+    OMPTaskLoopSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPMasterTaskLoopDirective(
+    OMPMasterTaskLoopDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPMaskedTaskLoopDirective(
+    OMPMaskedTaskLoopDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPMasterTaskLoopSimdDirective(
+    OMPMasterTaskLoopSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPMaskedTaskLoopSimdDirective(
+    OMPMaskedTaskLoopSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPParallelMasterTaskLoopDirective(
+    OMPParallelMasterTaskLoopDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPParallelMaskedTaskLoopDirective(
+    OMPParallelMaskedTaskLoopDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPParallelMasterTaskLoopSimdDirective(
+    OMPParallelMasterTaskLoopSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPParallelMaskedTaskLoopSimdDirective(
+    OMPParallelMaskedTaskLoopSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPDistributeDirective(OMPDistributeDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetUpdateDirective(
+    OMPTargetUpdateDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPDistributeParallelForDirective(
+    OMPDistributeParallelForDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPDistributeParallelForSimdDirective(
+    OMPDistributeParallelForSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPDistributeSimdDirective(
+    OMPDistributeSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetParallelForSimdDirective(
+    OMPTargetParallelForSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetSimdDirective(OMPTargetSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTeamsDistributeDirective(
+    OMPTeamsDistributeDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTeamsDistributeSimdDirective(
+    OMPTeamsDistributeSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTeamsDistributeParallelForSimdDirective(
+    OMPTeamsDistributeParallelForSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTeamsDistributeParallelForDirective(
+    OMPTeamsDistributeParallelForDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetTeamsDirective(OMPTargetTeamsDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetTeamsDistributeDirective(
+    OMPTargetTeamsDistributeDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetTeamsDistributeParallelForDirective(
+    OMPTargetTeamsDistributeParallelForDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetTeamsDistributeParallelForSimdDirective(
+    OMPTargetTeamsDistributeParallelForSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetTeamsDistributeSimdDirective(
+    OMPTargetTeamsDistributeSimdDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPInteropDirective(OMPInteropDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPDispatchDirective(OMPDispatchDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPMaskedDirective(OMPMaskedDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPGenericLoopDirective(OMPGenericLoopDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTeamsGenericLoopDirective(
+    OMPTeamsGenericLoopDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetTeamsGenericLoopDirective(
+    OMPTargetTeamsGenericLoopDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPParallelGenericLoopDirective(
+    OMPParallelGenericLoopDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitOMPTargetParallelGenericLoopDirective(
+    OMPTargetParallelGenericLoopDirective *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitSourceLocExpr(SourceLocExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitDeclRefExpr(DeclRefExpr *Node) {
+  declvisitor->Visit(Node->getDecl());
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitDependentScopeDeclRefExpr(
+                                           DependentScopeDeclRefExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitUnresolvedLookupExpr(UnresolvedLookupExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCPropertyRefExpr(ObjCPropertyRefExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitSYCLUniqueStableNameExpr(
+    SYCLUniqueStableNameExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitPredefinedExpr(PredefinedExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitStringLiteral(StringLiteral *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCharacterLiteral(CharacterLiteral *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitIntegerLiteral(IntegerLiteral *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitFixedPointLiteral(FixedPointLiteral *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitFloatingLiteral(FloatingLiteral *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitAddrLabelExpr(AddrLabelExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitGNUNullExpr(GNUNullExpr *) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitArrayInitIndexExpr(ArrayInitIndexExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitNoInitExpr(NoInitExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitImplicitValueInitExpr(ImplicitValueInitExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXBoolLiteralExpr(CXXBoolLiteralExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXNullPtrLiteralExpr(CXXNullPtrLiteralExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXThisExpr(CXXThisExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXDefaultArgExpr(CXXDefaultArgExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXDefaultInitExpr(CXXDefaultInitExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXScalarValueInitExpr(CXXScalarValueInitExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCXXInheritedCtorInitExpr(CXXInheritedCtorInitExpr *E) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitTypeTraitExpr(TypeTraitExpr *E) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitArrayTypeTraitExpr(ArrayTypeTraitExpr *E) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitSizeOfPackExpr(SizeOfPackExpr *E) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitSubstNonTypeTemplateParmPackExpr(
+                                       SubstNonTypeTemplateParmPackExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitFunctionParmPackExpr(FunctionParmPackExpr *E) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitConceptSpecializationExpr(ConceptSpecializationExpr *E) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCStringLiteral(ObjCStringLiteral *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCEncodeExpr(ObjCEncodeExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCSelectorExpr(ObjCSelectorExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCProtocolExpr(ObjCProtocolExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitObjCBoolLiteralExpr(ObjCBoolLiteralExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
+}
+
+StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitBlockExpr(BlockExpr *Node) {
+  return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
 }
 
 }

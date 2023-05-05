@@ -55,8 +55,8 @@ namespace clang {
     void consumeNbits(uint8_t n);
       
     void VisitFunctionDecl(FunctionDecl *F);
-
-    // void VisitDeclContext(DeclContext *DC, bool Indent = true);
+    void VisitVarDecl(VarDecl *D);
+    void VisitParmVarDecl(ParmVarDecl *D);
 
     //true if end of bistream
     bool EOBS();

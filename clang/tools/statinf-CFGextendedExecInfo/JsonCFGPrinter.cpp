@@ -11,7 +11,7 @@ static std::string sanitize(StmtPrinterHelper &Helper, const std::string &input)
   ;
 }
 
-static uint32_t print_elem(raw_ostream &OS, StmtPrinterHelper &Helper, const CFGElement &E) {
+static bool print_elem(raw_ostream &OS, StmtPrinterHelper &Helper, const CFGElement &E, uint32_t &exec_count) {
   switch (E.getKind()) {
     case CFGElement::Kind::Statement: {
       CFGStmt CS = E.castAs<CFGStmt>();
@@ -19,7 +19,7 @@ static uint32_t print_elem(raw_ostream &OS, StmtPrinterHelper &Helper, const CFG
       assert(S != nullptr && "Expecting non-null Stmt");
 
       if(!Helper.acceptStmt(S))
-        return 0;
+        return false;
         
       OS << "\t\t\t\t\t\t\"";
       std::string stmt_str;
@@ -29,20 +29,21 @@ static uint32_t print_elem(raw_ostream &OS, StmtPrinterHelper &Helper, const CFG
       if(Helper.getPolicy().debug)
         OS << " (" << S->getStmtClassName() << ")";
       OS << "\",\n";
-      return S->getExecCount();
+      exec_count = S->getExecCount();
+      return true;
     }
 
     default:
       break;
   }
-  return 0;
+  return false;
 }
 
 static void print_block(raw_ostream &OS, const CFG* cfg,
                         const CFGBlock &B,
                         StmtPrinterHelper &Helper) {
 
-  uint32_t bb_count = 0;
+  uint32_t bb_count = -1;
   std::string stmts_str;
   llvm::raw_string_ostream stmts_stream(stmts_str);
 
@@ -50,9 +51,10 @@ static void print_block(raw_ostream &OS, const CFG* cfg,
   for (CFGBlock::const_iterator I = B.begin(), E = B.end() ; I != E ; ++I ) {
     std::string stmt_str;
     llvm::raw_string_ostream stmt_stream(stmt_str);
-    uint32_t count = print_elem(stmt_stream, Helper, *I);
-    if(count) {
-      bb_count = count;
+    uint32_t count=0;
+    if(print_elem(stmt_stream, Helper, *I, count)) {
+      if(count && count < bb_count)
+        bb_count = count;
       stmts_stream << stmt_str << "|";
       ++j;
     }
@@ -60,8 +62,8 @@ static void print_block(raw_ostream &OS, const CFG* cfg,
   stmts_str = stmts_str.substr(0, stmts_str.size()-1);
   if(j > 0) {
     Helper.addBB();
-    if(bb_count > 0)
-      Helper.addExecutedBB();
+    if(bb_count > 0 && bb_count < (uint32_t)-1)
+      Helper.addBBExecuted(B.getBlockID());
   }
 
   if(j > 2 && Helper.getPolicy().stmt_summary) {
@@ -73,7 +75,7 @@ static void print_block(raw_ostream &OS, const CFG* cfg,
   stmts_str = Helper.str_replace(stmts_str, "|", "");
 
   OS << "\t\t\t\t\"BB" << B.getBlockID() << "\": {\n";
-  OS << "\t\t\t\t\t\"exec_count\": " << bb_count << ",\n";
+  OS << "\t\t\t\t\t\"exec_count\": " << (j>0 ? bb_count : 0) << ",\n";
   OS << "\t\t\t\t\t\"stmts\": [\n";
   OS << stmts_str.substr(0, stmts_str.size()-2) << "\n";
   OS << "\t\t\t\t\t]\n";
@@ -180,7 +182,7 @@ void printCFG(llvm::raw_ostream &Out,
   }
 
   Out << "{\n";
-  Out << "\t\"coverage\": \"" << (Helper.getBBExecutedCount() / Helper.getBBcount()) * 100 << "%,\n";
+  Out << "\t\"coverage\": \"" << llvm::format("%4.2f", Helper.getCoverage()) << "%,\n";
   Out << "\t\"cfgs\": [\n";
   Out << cfgs_str.substr(0, cfgs_str.size()-2) << "\n";
   Out << "\t],\n";
@@ -189,5 +191,8 @@ void printCFG(llvm::raw_ostream &Out,
   Out << "\t]\n";
   Out << "}\n";
   Out.flush();
+  llvm::outs() << "BB count: " << Helper.getBBcount() << "\n";
+  llvm::outs() << "Executed BB count: " << Helper.getBBExecutedCount() << "\n";
+  llvm::outs() << "Coverage: " << llvm::format("%4.2f", Helper.getCoverage()) << "%\n";
 }
 }

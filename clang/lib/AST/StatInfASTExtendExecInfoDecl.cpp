@@ -21,132 +21,6 @@ namespace clang {
 // Common C declarations
 //----------------------------------------------------------------------------
 
-// void StatInfASTExtendExecInfoDecl::VisitDeclContext(DeclContext *DC, bool Indent) {
-//   if (Policy.TerseOutput)
-//     return;
-
-//   if (Indent)
-//     Indentation += Policy.Indentation;
-
-//   SmallVector<Decl*, 2> Decls;
-//   for (DeclContext::decl_iterator D = DC->decls_begin(), DEnd = DC->decls_end();
-//        D != DEnd; ++D) {
-
-//     // Don't print ObjCIvarDecls, as they are printed when visiting the
-//     // containing ObjCInterfaceDecl.
-//     if (isa<ObjCIvarDecl>(*D))
-//       continue;
-
-//     // Skip over implicit declarations in pretty-printing mode.
-//     if (D->isImplicit())
-//       continue;
-
-//     // Don't print implicit specializations, as they are printed when visiting
-//     // corresponding templates.
-//     if (auto FD = dyn_cast<FunctionDecl>(*D))
-//       if (FD->getTemplateSpecializationKind() == TSK_ImplicitInstantiation &&
-//           !isa<ClassTemplateSpecializationDecl>(DC))
-//         continue;
-
-//     // The next bits of code handle stuff like "struct {int x;} a,b"; we're
-//     // forced to merge the declarations because there's no other way to
-//     // refer to the struct in question.  When that struct is named instead, we
-//     // also need to merge to avoid splitting off a stand-alone struct
-//     // declaration that produces the warning ext_no_declarators in some
-//     // contexts.
-//     //
-//     // This limited merging is safe without a bunch of other checks because it
-//     // only merges declarations directly referring to the tag, not typedefs.
-//     //
-//     // Check whether the current declaration should be grouped with a previous
-//     // non-free-standing tag declaration.
-//     QualType CurDeclType = getDeclType(*D);
-//     if (!Decls.empty() && !CurDeclType.isNull()) {
-//       QualType BaseType = GetBaseType(CurDeclType);
-//       if (!BaseType.isNull() && isa<ElaboratedType>(BaseType) &&
-//           cast<ElaboratedType>(BaseType)->getOwnedTagDecl() == Decls[0]) {
-//         Decls.push_back(*D);
-//         continue;
-//       }
-//     }
-
-//     // If we have a merged group waiting to be handled, handle it now.
-//     if (!Decls.empty())
-//       ProcessDeclGroup(Decls);
-
-//     // If the current declaration is not a free standing declaration, save it
-//     // so we can merge it with the subsequent declaration(s) using it.
-//     if (isa<TagDecl>(*D) && !cast<TagDecl>(*D)->isFreeStanding()) {
-//       Decls.push_back(*D);
-//       continue;
-//     }
-
-//     if (isa<AccessSpecDecl>(*D)) {
-//       Indentation -= Policy.Indentation;
-//       this->Indent();
-//       Print(D->getAccess());
-//       Out << ":\n";
-//       Indentation += Policy.Indentation;
-//       continue;
-//     }
-
-//     this->Indent();
-//     Visit(*D);
-
-//     // FIXME: Need to be able to tell the StatInfASTExtendExecInfoDecl when
-//     const char *Terminator = nullptr;
-//     if (isa<OMPThreadPrivateDecl>(*D) || isa<OMPDeclareReductionDecl>(*D) ||
-//         isa<OMPDeclareMapperDecl>(*D) || isa<OMPRequiresDecl>(*D) ||
-//         isa<OMPAllocateDecl>(*D))
-//       Terminator = nullptr;
-//     else if (isa<ObjCMethodDecl>(*D) && cast<ObjCMethodDecl>(*D)->hasBody())
-//       Terminator = nullptr;
-//     else if (auto FD = dyn_cast<FunctionDecl>(*D)) {
-//       if (FD->isThisDeclarationADefinition())
-//         Terminator = nullptr;
-//       else
-//         Terminator = ";";
-//     } else if (auto TD = dyn_cast<FunctionTemplateDecl>(*D)) {
-//       if (TD->getTemplatedDecl()->isThisDeclarationADefinition())
-//         Terminator = nullptr;
-//       else
-//         Terminator = ";";
-//     } else if (isa<NamespaceDecl, LinkageSpecDecl, ObjCImplementationDecl,
-//                    ObjCInterfaceDecl, ObjCProtocolDecl, ObjCCategoryImplDecl,
-//                    ObjCCategoryDecl, HLSLBufferDecl>(*D))
-//       Terminator = nullptr;
-//     else if (isa<EnumConstantDecl>(*D)) {
-//       DeclContext::decl_iterator Next = D;
-//       ++Next;
-//       if (Next != DEnd)
-//         Terminator = ",";
-//     } else
-//       Terminator = ";";
-
-//     if (Terminator)
-//       Out << Terminator;
-//     if (!Policy.TerseOutput &&
-//         ((isa<FunctionDecl>(*D) &&
-//           cast<FunctionDecl>(*D)->doesThisDeclarationHaveABody()) ||
-//          (isa<FunctionTemplateDecl>(*D) &&
-//           cast<FunctionTemplateDecl>(*D)->getTemplatedDecl()->doesThisDeclarationHaveABody())))
-//       ; // StmtPrinter already added '\n' after CompoundStmt.
-//     else
-//       Out << "\n";
-
-//     // Declare target attribute is special one, natural spelling for the pragma
-//     // assumes "ending" construct so print it here.
-//     if (D->hasAttr<OMPDeclareTargetDeclAttr>())
-//       Out << "#pragma omp end declare target\n";
-//   }
-
-//   if (!Decls.empty())
-//     ProcessDeclGroup(Decls);
-
-//   if (Indent)
-//     Indentation -= Policy.Indentation;
-// }
-
 void StatInfASTExtendExecInfoDecl::VisitFunctionDecl(FunctionDecl *F) {
     if(contains_temporal_analysis_data && EntryPointName == F->getName()) {
         size_t time;
@@ -158,11 +32,11 @@ void StatInfASTExtendExecInfoDecl::VisitFunctionDecl(FunctionDecl *F) {
 
     if(contains_structural_analysis_data) {
         if(F->getBody()) {
-            // std::cout << "-> Enter " << F->getName().str() << "\n";
+            // llvm::outs() << "-> Enter " << F->getName().str() << "\n";
             StatInfASTExtendExecInfoStmt stmtVisitor(this, contains_structural_analysis_data, contains_temporal_analysis_data);
 
             stmtVisitor.Visit(F->getBody());
-            // std::cout << "-> Exit " << F->getName().str() << "\n";
+            // llvm::outs() << "-> Exit " << F->getName().str() << "\n";
         }
         else
             missing_func_body.insert(F->getName().str());
@@ -176,6 +50,18 @@ void StatInfASTExtendExecInfoDecl::VisitFunctionDecl(FunctionDecl *F) {
         F->addExitTimestamp(time);
     }
 }
+
+void StatInfASTExtendExecInfoDecl::VisitVarDecl(VarDecl *D) {
+  if (Expr *Init = D->getInit()) {
+    StatInfASTExtendExecInfoStmt stmtVisitor(this, contains_structural_analysis_data, contains_temporal_analysis_data);
+    stmtVisitor.Visit(Init);
+  }
+}
+
+void StatInfASTExtendExecInfoDecl::VisitParmVarDecl(ParmVarDecl *D) {
+  VisitVarDecl(D);
+}
+
 
 bool StatInfASTExtendExecInfoDecl::getSmallNBits(uint8_t n, uint8_t *ret) {
     if(n > 8) {

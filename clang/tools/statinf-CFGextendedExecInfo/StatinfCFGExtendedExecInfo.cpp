@@ -114,7 +114,7 @@ static cl::list<string>
 static cl::list<string>
     Definitions("D", cl::desc(Options.getOptionHelpText(options::OPT_defsym)),
                   cl::cat(CFGExtendExecInfoCat));
-static cl::list<string>
+static cl::opt<string>
     InputDir("input-dir", 
       cl::desc("Recursively scans this directory to find all .c files, also add all found directories in the include path"),
       cl::cat(CFGExtendExecInfoCat)
@@ -135,8 +135,7 @@ static cl::opt<string>
     SplitDir(
       "split-dir",
       cl::desc("Enable to generate a separate CFG dot file per execution got from the bitstream. "
-              "This options specifies in which folder the generated file are storede."
-              "The folder must exist."),
+              "This options specifies in which folder the generated files are stored."),
       cl::cat(CFGExtendExecInfoCat)
     );
 static cl::opt<bool>
@@ -378,10 +377,13 @@ int main(int argc, const char **argv) {
     AbsolutePaths.push_back(move(*AbsPath));
   }
 
-  // Scan for additional C files and directories to put in the include paths from a given root project
-  for(string edir : InputDir) {
-    scandir(*OverlayFileSystem, edir, IncludePath, AbsolutePaths);
+  if(!InputDir.empty() && !AbsolutePaths.empty()) {
+    errs() << "Can't provide a list of files and an input-dir to scan for source files.\n";
+    return 1;
   }
+
+  // Scan for additional C files and directories to put in the include paths from a given root project
+  scandir(*OverlayFileSystem, InputDir, IncludePath, AbsolutePaths);
 
   // Add include paths
   for(auto I : IncludePath) {

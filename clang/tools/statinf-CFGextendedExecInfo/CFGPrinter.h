@@ -22,13 +22,24 @@ class StmtPrinterHelper  {
   llvm::DenseMap<llvm::StringRef, unsigned> entries;
   size_t BB_count=0;
   size_t BB_executed_count=0;
+  std::map<llvm::StringRef, bool> is_cfg_executed;
+  std::map<llvm::StringRef, bool> cfgs;
+  std::map<llvm::StringRef, std::map<unsigned, bool>> is_BB_executed;
+  std::map<llvm::StringRef, std::map<unsigned, bool>> is_BB_skipped;
 
 public:
   StmtPrinterHelper(CFGPrinterPolicy &pol) : Policy(pol) {}
 
   CFGPrinterPolicy &getPolicy() const { return Policy; }
-  void setCFGName(const llvm::StringRef name) { cfg_name = name; }
+  void setCFGName(const llvm::StringRef name) { cfgs[name]; cfg_name = name; }
   llvm::StringRef getCFGName() { return cfg_name; }
+
+  void addCFGExecuted() {is_cfg_executed[cfg_name] = true;}
+  bool isCFGExecuted() { return is_cfg_executed.count(cfg_name) && is_cfg_executed[cfg_name];}
+  bool isCFGExecuted(const std::string &cname) { return is_cfg_executed.count(cname) && is_cfg_executed[cname];}
+
+  bool isCFGUnknown() { return !cfgs.count(cfg_name);}
+  bool isCFGUnknown(const std::string &cname) { return !cfgs.count(cname);}
 
   void addEntry(unsigned bbid) {
     entries[cfg_name] = bbid;
@@ -40,9 +51,15 @@ public:
     return 0;
   }
   void addBB() {++BB_count;}
-  void addExecutedBB() {++BB_executed_count;}
+  void addBBExecuted(unsigned bbid) {is_BB_executed[cfg_name][bbid] = true; ++BB_executed_count;}
+  bool isBBexecuted(unsigned bbid) { return is_BB_executed[cfg_name].count(bbid) && is_BB_executed[cfg_name][bbid];}
+
+  void addBBSkipped(unsigned bbid) {is_BB_skipped[cfg_name][bbid] = true;}
+  bool isBBSkipped(unsigned bbid) { return is_BB_skipped[cfg_name].count(bbid) && is_BB_skipped[cfg_name][bbid];}
+
   size_t getBBcount() {return BB_count;}
   size_t getBBExecutedCount() {return BB_executed_count;}
+  float getCoverage() { return (BB_executed_count / (float)BB_count) * 100;}
 
   std::string str_replace(const std::string &ci, const std::string &search, const std::string &replace) {
     size_t pos=0;
