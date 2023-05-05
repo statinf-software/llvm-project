@@ -53,7 +53,7 @@ static cl::opt<string>
       cl::desc("File in which storing the output"),
       cl::cat(OptCat)
     );
-static cl::list<string>
+static cl::opt<string>
     InputDir("input-dir", 
       cl::desc("Recursively scans this directory to find all .c files, also add all found directories in the include path"),
       cl::cat(OptCat)
@@ -206,6 +206,8 @@ public:
   Optional<uint64_t> getForInitValue(ForStmt *loop, const ASTContext &Ctx) {
     string loc = loop->getBeginLoc().printToString(*sm);
     Stmt *init = loop->getInit();
+    if(!init)
+      return None;
     if(DeclStmt *dsinit = dyn_cast<DeclStmt>(init)) {
       if(VarDecl *vdinit = dyn_cast<VarDecl>(dsinit->getSingleDecl())) {
         return getLiteralValue(vdinit->getInit(), Ctx, loc, "For (VarDecl) Init");
@@ -225,6 +227,8 @@ public:
   Optional<uint64_t> getForCondValue(ForStmt *loop, const ASTContext &Ctx) {
     string loc = loop->getBeginLoc().printToString(*sm);
     Stmt *cond = loop->getCond();
+    if(!cond)
+      return None;
     if (BinaryOperator *bcond = dyn_cast<BinaryOperator>(cond)) {
       return getBinaryOpConstantVal(bcond, Ctx, loc, "For Cond");
     }
@@ -236,6 +240,8 @@ public:
   Optional<uint64_t> getForIncValue(ForStmt *loop, const ASTContext &Ctx) {
     string loc = loop->getBeginLoc().printToString(*sm);
     Stmt *inc = loop->getInc();
+    if(!inc)
+      return None;
     if (BinaryOperator *binit = dyn_cast<BinaryOperator>(inc)) {
       if(auto val = getBinaryOpConstantVal(binit, Ctx, loc, ""))
         return val;
@@ -268,8 +274,89 @@ public:
       if(!errormsg.empty()) errs() << "line " << loc << ": "<<errormsg<<" is an integer literal but doesn't have a value\n";
       return None;
     }
+    else if(ImplicitCastExpr *iinit = dyn_cast<ImplicitCastExpr>(expr)) {
+      return getLiteralValue(iinit->getSubExpr(), Ctx, loc, errormsg);
+    }
+    else if(CStyleCastExpr *iinit = dyn_cast<CStyleCastExpr>(expr)) {
+      return getLiteralValue(iinit->getSubExpr(), Ctx, loc, errormsg);
+    }
+    else if(ParenExpr *iinit = dyn_cast<ParenExpr>(expr)) {
+      return getLiteralValue(iinit->getSubExpr(), Ctx, loc, errormsg);
+    }
+    else if(BinaryOperator *iinit = dyn_cast<BinaryOperator>(expr)) {
+      return evaluateExpr(iinit, Ctx, loc);
+    }
     if(!errormsg.empty()) errs() << "line " << loc << ": "<<errormsg<<" expr is not an integer literal ("<<expr->getStmtClassName()<<")\n";
     return None;
+  }
+
+  Optional<uint64_t> evaluateExpr(BinaryOperator *expr, const ASTContext &Ctx, const string &loc) {
+    auto term1 = getLiteralValue(expr->getLHS(), Ctx, loc, "");
+    if(term1 == None)
+      return None;
+    auto term2 = getLiteralValue(expr->getRHS(), Ctx, loc, "");
+    if(term2 == None)
+      return None;
+    
+    switch(expr->getOpcode()) {
+      case BO_Mul: //*
+        return *term1 * *term2;
+      case BO_Div: ///
+        return *term1 / *term2;
+      case BO_Rem: //%
+        return *term1 % *term2;
+      case BO_Add: //+
+        return *term1 + *term2;
+      case BO_Sub: //-
+        return *term1 - *term2;
+      case BO_Shl: //<<
+        return *term1 << *term2;
+      case BO_Shr: //>>
+        return *term1 >> *term2;
+      // Not supported by my compiler ... it's C++20 anyway
+      //case BO_Cmp: //<=>
+      //  return *term1 <=> *term2;
+      case BO_LT: //<
+        return *term1 < *term2;
+      case BO_GT: //>
+        return *term1 > *term2;
+      case BO_LE: //<=
+        return *term1 <= *term2;
+      case BO_GE: //>=
+        return *term1 >= *term2;
+      case BO_EQ: //==
+        return *term1 == *term2;
+      case BO_NE: //!=
+        return *term1 != *term2;
+      case BO_And: //&
+        return *term1 & *term2;
+      case BO_Xor: //^
+        return *term1 ^ *term2;
+      case BO_Or: //|
+        return *term1 | *term2;
+      case BO_LAnd: //&&
+        return *term1 && *term2;
+      case BO_LOr: //||
+        return *term1 || *term2;
+      /*
+      case BO_Assign: //=
+      case BO_MulAssign: //*=
+      case BO_DivAssign: ///=
+      case BO_RemAssign: //%=
+      case BO_AddAssign: //+=
+      case BO_SubAssign: //-=
+      case BO_ShlAssign: //<<=
+      case BO_ShrAssign: //>>=
+      case BO_AndAssign: //&=
+      case BO_XorAssign: //^=
+      case BO_OrAssign: //|=
+      case BO_PtrMemD: //.*
+      case BO_PtrMemI: //->*
+      case BO_Comma: //,
+      */
+      default:
+        return None;
+    }
   }
 
   Optional<uint64_t> getBinaryOpConstantVal(BinaryOperator *binit, const ASTContext &Ctx, const string &loc, const string &errormsg) {
@@ -307,7 +394,7 @@ int main(int argc, const char **argv) {
     ct::CommonOptionsParser &OptionsParser = ExpectedParser.get();
 
     if(OutputJson && OutputXML) {
-      errs() << "Can't chose only one of json or xml not both";
+      errs() << "Can chose only one of json or xml not both";
       return 1;
     }
     if(!OutputJson && !OutputXML)
@@ -341,10 +428,13 @@ int main(int argc, const char **argv) {
       AbsolutePaths.push_back(move(*AbsPath));
     }
 
-    // Scan for additional C files and directories to put in the include paths from a given root project
-    for(string edir : InputDir) {
-      scandir(*OverlayFileSystem, edir, IncludePath, AbsolutePaths);
+    if(!InputDir.empty() && !AbsolutePaths.empty()) {
+      errs() << "Can't provide a list of files and an input-dir to scan for source files.\n";
+      return 1;
     }
+
+    // Scan for additional C files and directories to put in the include paths from a given root project
+    scandir(*OverlayFileSystem, InputDir, IncludePath, AbsolutePaths);
 
     // Add include paths
     for(auto I : IncludePath) {
