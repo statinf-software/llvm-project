@@ -448,8 +448,8 @@ void StatInfInstrStmtPrinter::VisitIfStmt(IfStmt *If) {
 }
 
 void StatInfInstrStmtPrinter::VisitSwitchStmt(SwitchStmt *Node) {
+  uint32_t num_cases = 0;
   if(EnableStructuralAnalysis && enable_instrumentation) {
-    uint32_t num_cases = 0;
     CompoundStmt *body = dyn_cast<CompoundStmt>(Node->getBody());
     if(body) {
       for(auto ch : body->body()) {
@@ -473,6 +473,9 @@ void StatInfInstrStmtPrinter::VisitSwitchStmt(SwitchStmt *Node) {
   OS << ")";
   switch_case_count = 0;
   PrintControlledStmt(Node->getBody());
+
+  if(EnableStructuralAnalysis && enable_instrumentation)
+    Indent() << "STATINF_AFTER_SWITCH(" << num_cases << ");" << NL;
 }
 
 void StatInfInstrStmtPrinter::VisitWhileStmt(WhileStmt *Node) {
