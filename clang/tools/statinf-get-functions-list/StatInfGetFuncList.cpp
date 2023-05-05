@@ -99,7 +99,7 @@ static void printListToJson(raw_ostream &Out, const ASTContext &ctx, vector<Func
 
     sstream << "\t\"" << func->getName() << "\": {\n";
     sstream << "\t\t\"file\": \""<<file<<"\",\n";
-    sstream << "\t\t\"line\": \""<<line<<"\",\n";
+    sstream << "\t\t\"line\": \""<<line<<"\"\n";
     sstream << "\t},\n";
   }
 
