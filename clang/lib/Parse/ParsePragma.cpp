@@ -4017,16 +4017,8 @@ void PragmaLiebherrHandler::HandlePragma(Preprocessor &PP,
 
   if(Kind == tok::annot_pragma_diag_suppress) {
     params += " ";
-    if(Tok.getIdentifierInfo())
-      params += Tok.getIdentifierInfo()->getName();
-    else
-      params += Tok.getRawIdentifier();
 
-    PP.Lex(Tok);
-    if(Tok.getKind() == tok::comma) {
-      params += ",";
-
-      PP.Lex(Tok);
+    while(true) {
       if(Tok.getIdentifierInfo())
         params += Tok.getIdentifierInfo()->getName();
       else
@@ -4034,16 +4026,12 @@ void PragmaLiebherrHandler::HandlePragma(Preprocessor &PP,
 
       PP.Lex(Tok);
       if(Tok.getKind() != tok::comma) {
-        PP.Diag(Tok.getLocation(), diag::err_pragma_Liebherr_malformed);
+        break;
       }
-      else {
-        params += ",";
-        PP.Lex(Tok);
-        if(Tok.getIdentifierInfo())
-          params += Tok.getIdentifierInfo()->getName();
-        else
-          params += Tok.getRawIdentifier();
-      }
+
+      params += ",";
+
+      PP.Lex(Tok);
     }
   }
   else {
