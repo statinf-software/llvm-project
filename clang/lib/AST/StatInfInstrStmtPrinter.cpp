@@ -206,7 +206,7 @@ void StatInfInstrStmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
   // Policy.SuppressQualType = bk_suppress_type;
 
   if(EnableTemporalAnalysis && enable_instrumentation && loc_enter_function_body) {
-    if(!isa<ReturnStmt>(Node->body_back()))
+    if(!Node->body_back() || !isa<ReturnStmt>(Node->body_back()))
       Indent(Policy.Indentation) << "STATINF_EXIT_FUNCTION();" << NL; 
   }
   
@@ -316,7 +316,7 @@ void StatInfInstrStmtPrinter::VisitCaseStmt(CaseStmt *Node) {
   OS << ":" << NL;
 
   if(EnableStructuralAnalysis && enable_instrumentation)
-    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE("<< switch_case_count++ << ");" << NL;
+    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE(" << nested_switch_SID.top() <<", " << switch_case_count++ << ");" << NL;
 
   PrintStmt(Node->getSubStmt(), 0);
 }
@@ -324,7 +324,7 @@ void StatInfInstrStmtPrinter::VisitCaseStmt(CaseStmt *Node) {
 void StatInfInstrStmtPrinter::VisitDefaultStmt(DefaultStmt *Node) {
   Indent(-1) << "default:" << NL;
   if(EnableStructuralAnalysis && enable_instrumentation)
-    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE("<< switch_case_count++ << ");" << NL;
+    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE(" << nested_switch_SID.top() <<", " << switch_case_count++ << ");" << NL;
   PrintStmt(Node->getSubStmt(), 0);
 }
 
@@ -460,7 +460,10 @@ void StatInfInstrStmtPrinter::VisitSwitchStmt(SwitchStmt *Node) {
     else
       llvm::errs() << "Weird: Child of a Switch is not a CompoundStmt but a " << Node->getBody()->getStmtClassName();
 
-    Indent() << "STATINF_INIT_SWITCH(" << num_cases << ");" << NL;
+    std::string sid = "S"+std::to_string(Context->getSourceManager().getPresumedLoc(Node->getBeginLoc()).getLine());
+    nested_switch_SID.push(sid);
+
+    Indent() << "STATINF_INIT_SWITCH(" << nested_switch_SID.top() <<", " << num_cases << ");" << NL;
   }
 
   Indent() << "switch (";
@@ -474,8 +477,10 @@ void StatInfInstrStmtPrinter::VisitSwitchStmt(SwitchStmt *Node) {
   switch_case_count = 0;
   PrintControlledStmt(Node->getBody());
 
-  if(EnableStructuralAnalysis && enable_instrumentation)
-    Indent() << "STATINF_AFTER_SWITCH(" << num_cases << ");" << NL;
+  if(EnableStructuralAnalysis && enable_instrumentation) {
+    Indent() << "STATINF_AFTER_SWITCH(" << nested_switch_SID.top() <<", "  << num_cases << ");" << NL;
+    nested_switch_SID.pop();
+  }
 }
 
 void StatInfInstrStmtPrinter::VisitWhileStmt(WhileStmt *Node) {
@@ -657,21 +662,19 @@ static bool isLiteral(Expr *e) {
 }
 
 void StatInfInstrStmtPrinter::VisitReturnStmt(ReturnStmt *Node) {
-  ImplicitCastExpr *tmp = dyn_cast<ImplicitCastExpr>(Node->getRetValue());
   bool retvaladded = false;
-
   // To be sure to include any code present in the return statement in the measurment
   // Create a variable __retval__ to place the result of the computation 
-  if(Node->getRetValue() &&
-      !isLiteral(Node->getRetValue()) &&
-      (!tmp ||
-      (tmp && !isa<DeclRefExpr>(tmp->getSubExpr())))) {
-    Indent() << "";
-    declprinter->printDeclType(Node->getRetValue()->getType(), "__retval__");
-    OS << " = ";
-    PrintExpr(Node->getRetValue());
-    OS << ";" << NL;
-    retvaladded = true;
+  if(Node->getRetValue() && !isLiteral(Node->getRetValue())) {
+    ImplicitCastExpr *tmp = dyn_cast<ImplicitCastExpr>(Node->getRetValue());
+    if(!tmp || (tmp && !isa<DeclRefExpr>(tmp->getSubExpr()))) {
+      Indent() << "";
+      declprinter->printDeclType(Node->getRetValue()->getType(), "__retval__");
+      OS << " = ";
+      PrintExpr(Node->getRetValue());
+      OS << ";" << NL;
+      retvaladded = true;
+    }
   }
 
   if(EnableTemporalAnalysis && enable_instrumentation)
@@ -2914,14 +2917,9 @@ void StatInfInstrStmtPrinter::VisitTypoExpr(TypoExpr *Node) {
 }
 
 void StatInfInstrStmtPrinter::VisitRecoveryExpr(RecoveryExpr *Node) {
-  OS << "<recovery-expr>(";
-  const char *Sep = "";
   for (Expr *E : Node->subExpressions()) {
-    OS << Sep;
     PrintExpr(E);
-    Sep = ", ";
   }
-  OS << ')';
 }
 
 void StatInfInstrStmtPrinter::VisitAsTypeExpr(AsTypeExpr *Node) {

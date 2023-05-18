@@ -56,6 +56,7 @@
 #include <cassert>
 #include <optional>
 #include <string>
+#include <stack>
 
 //===----------------------------------------------------------------------===//
 // StatInfInstrStmtPrinter Visitor
@@ -83,6 +84,8 @@ namespace clang {
     bool EnableTemporalAnalysis = true; // Enable the addition of the macros only for the temporal analysis
     bool entry_point_func = false; // next CompoundStmt is the configured entrypoint
     bool ret_entry_point_func = false; // keep the state of the entrypoint for return instruction
+
+    std::stack<std::string> nested_switch_SID;
 
   public:
     StatInfInstrStmtPrinter(raw_ostream &os, StatInfInstrDeclPrinter *dp, PrinterHelper *helper,
