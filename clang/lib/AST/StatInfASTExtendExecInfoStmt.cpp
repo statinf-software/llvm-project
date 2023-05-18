@@ -24,13 +24,21 @@ namespace clang {
 }
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::Visit(Stmt *S) {
+  if(S) {
     S->incrExec();
     return StatInfASTExtendExecInfoStmtParent::Visit(S);
+  }
+  else
+    return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
 }
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitExpr(Expr *S) {
+  if(S) {
     S->incrExec();
     return StatInfASTExtendExecInfoStmtParent::VisitExpr(S);
+  }
+  else
+    return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
 }
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitCompoundStmt(CompoundStmt *node) {
