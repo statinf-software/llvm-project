@@ -4154,11 +4154,11 @@ ExpectedDecl ASTNodeImporter::VisitVarDecl(VarDecl *D) {
           }
         }
 
-        Importer.ToDiag(Loc, diag::warn_odr_variable_type_inconsistent)
-          << Name << D->getType() << FoundVar->getType();
-        Importer.ToDiag(FoundVar->getLocation(), diag::note_odr_value_here)
-          << FoundVar->getType();
-        ConflictingDecls.push_back(FoundDecl);
+        // Importer.ToDiag(Loc, diag::warn_odr_variable_type_inconsistent)
+        //   << Name << D->getType() << FoundVar->getType();
+        // Importer.ToDiag(FoundVar->getLocation(), diag::note_odr_value_here)
+        //   << FoundVar->getType();
+        // ConflictingDecls.push_back(FoundDecl);
       }
     }
 
