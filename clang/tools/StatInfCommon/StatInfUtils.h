@@ -5,6 +5,7 @@
 
 #include "clang/Tooling/Tooling.h"
 #include "clang/Driver/Options.h"
+#include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Analysis/CallGraph.h"
@@ -24,6 +25,7 @@ public:
     }
   }
 };
+void extractCallGraph(clang::ASTUnit *ast, clang::CallGraph *cg, std::string EntryPoint);
 
 void add_include_paths_in_clangtoolarg(llvm::cl::list<std::string> &paths, llvm::vfs::FileSystem &FS);
 void add_defs_in_clangtoolarg(llvm::cl::list<std::string> &defs);
@@ -39,3 +41,5 @@ std::error_code create_directory_recursive(llvm::StringRef dir);
 void scandir(llvm::vfs::FileSystem &fs, llvm::StringRef dirname, llvm::cl::list<std::string> &dirs, 
     std::vector<std::string> &C_files, std::vector<std::string> &other_files, 
     std::string Filter);
+
+void get_c_files_from_cmdline(std::vector<std::string> &C_files, llvm::vfs::FileSystem &FS, clang::tooling::CommonOptionsParser &OptionsParser);

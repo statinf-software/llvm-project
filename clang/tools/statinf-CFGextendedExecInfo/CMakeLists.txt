@@ -19,4 +19,5 @@ clang_target_link_libraries(statinf-CFG-with-trace
   clangTooling
   clangToolingSyntax
   clangAnalysis
+  libstatinfclang
   )

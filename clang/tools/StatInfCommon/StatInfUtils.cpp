@@ -5,6 +5,7 @@ using namespace clang;
 using namespace std;
 namespace cd = clang::driver;
 namespace ct = clang::tooling;
+namespace am = clang::ast_matchers;
 
 vector<string> args_for_clangtool{"-Wno-int-conversion", 
     "-Wno-unused-value", 
@@ -131,4 +132,29 @@ error_code create_directory_recursive(StringRef dir) {
     return ec;
 
   return sys::fs::create_directory(dir);
+}
+
+void extractCallGraph(ASTUnit *ast, CallGraph *cg, string EntryPoint) {
+  am::DeclarationMatcher entrypoint_match = am::functionDecl(am::hasName(EntryPoint)).bind("entrypoint");
+  cg->shouldVisitRecursively(true);
+  CallGraphExtract extractor(cg);
+  am::MatchFinder Finder;
+  Finder.addMatcher(entrypoint_match, &extractor);
+  Finder.matchAST(ast->getASTContext());
+}
+
+void get_c_files_from_cmdline(vector<string> &C_files, llvm::vfs::FileSystem &FS, ct::CommonOptionsParser &OptionsParser) {
+  // Compute all absolute paths before we run any actions, as those will change
+  // the working directory.
+  C_files.reserve(OptionsParser.getSourcePathList().size());
+  for (const auto &SourcePath : OptionsParser.getSourcePathList()) {
+    auto AbsPath = ct::getAbsolutePath(FS, SourcePath);
+    if (!AbsPath) {
+      errs() << "Skipping " << SourcePath
+                  << ". Error while getting an absolute path: "
+                  << toString(AbsPath.takeError()) << "\n";
+      continue;
+    }
+    C_files.push_back(move(*AbsPath));
+  }
 }

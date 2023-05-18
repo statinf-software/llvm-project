@@ -37,13 +37,12 @@
 #include "llvm/Support/Casting.h"
 #include "clang/Analysis/CFG.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/AST/ASTImporter.h"
-#include "clang/Analysis/CallGraph.h"
 
 #include "clang/AST/StatInfASTExtendExecInfoDecl.h"
 #include "clang/AST/StatInfASTResetExec.h"
 
 #include "CFGPrinter.h"
+#include "../StatInfCommon/StatInfUtils.h"
 
 
 #include <vector>
@@ -51,17 +50,17 @@
 #include <fstream>
 #include <iostream>
 
-using namespace clang::driver;
-using namespace clang::tooling;
 using namespace llvm;
+using namespace clang;
 using namespace std;
-
+namespace cd = clang::driver;
+namespace ct = clang::tooling;
 namespace am = clang::ast_matchers;
 using MatchResult = am::MatchFinder::MatchResult;
 using MatchCallback = am::MatchFinder::MatchCallback;
-using ListCFGs = map<llvm::StringRef, unique_ptr<clang::CFG>>;
+using ListCFGs = map<StringRef, unique_ptr<CFG>>;
 
-static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
+static cl::extrahelp CommonHelp(ct::CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp(
    "\tCombine a trace bitstream file into the inter-procedural CFG of an application\n"
    "\t===> WARNING: the provided C files must not contain instrumentation code <===\n"
@@ -71,7 +70,7 @@ static cl::extrahelp MoreHelp(
 );
 
 static cl::OptionCategory CFGExtendExecInfoCat("clang-check options");
-static const opt::OptTable &Options = getDriverOptTable();
+static const opt::OptTable &Options = cd::getDriverOptTable();
 static cl::opt<string>
     EntryPoint(
         "entrypoint",
@@ -109,10 +108,10 @@ static cl::opt<bool>
     cl::cat(CFGExtendExecInfoCat)
   );
 static cl::list<string>
-    IncludePath("I", cl::desc(Options.getOptionHelpText(options::OPT_include)),
+    IncludePath("I", cl::desc(Options.getOptionHelpText(cd::options::OPT_include)),
                   cl::cat(CFGExtendExecInfoCat));
 static cl::list<string>
-    Definitions("D", cl::desc(Options.getOptionHelpText(options::OPT_defsym)),
+    Definitions("D", cl::desc(Options.getOptionHelpText(cd::options::OPT_defsym)),
                   cl::cat(CFGExtendExecInfoCat));
 static cl::opt<string>
     InputDir("input-dir", 
@@ -144,141 +143,123 @@ static cl::opt<bool>
       cl::desc("List all instructions in a BB, if disable (default) only prints a summary (1st and last)"),
       cl::cat(CFGExtendExecInfoCat)
     );
+static cl::opt<string>
+    Filter("filter",
+      cl::desc("Filter out files that matches the given pattern, the full path is checked so a full directory can been filter out."),
+      cl::cat(CFGExtendExecInfoCat)
+    );
 
 namespace {
 
-static void scandir(llvm::vfs::FileSystem &fs, StringRef dirname, cl::list<string> &dirs, vector<string> &C_files) {
-  dirs.push_back(*(getAbsolutePath(fs, dirname)));
-  error_code EC;
-  for(llvm::vfs::directory_iterator elt = fs.dir_begin(dirname, EC), dirend ; elt != dirend && !EC; elt.increment(EC)) {
-    if (elt->path().endswith(".c"))
-      C_files.push_back(*(getAbsolutePath(fs, elt->path())));
-    else if(elt->type() == llvm::sys::fs::file_type::directory_file)
-      scandir(fs, elt->path(), dirs, C_files);
-  }
-}
-
-static void exportCFGs(const string &output_file, clang::ASTContext &ctx, ListCFGs &CFGs, clang::CallGraph *cg) {
+static void exportCFGs(const string &output_file, ASTContext &ctx, ListCFGs &CFGs, CallGraph *cg) {
   CFGPrinterPolicy policy(ctx.getLangOpts());
   policy.debug = Debug;
   policy.add_coverage_color = true;
   policy.stmt_summary = !FullInstrInBB;
   if(OutputDot) {
-    unique_ptr<llvm::raw_ostream> OutFile = nullptr;
+    unique_ptr<raw_ostream> OutFile = nullptr;
     if(!output_file.empty()) {
       error_code EC;
-      OutFile = make_unique<llvm::raw_fd_ostream>(output_file+".dot", EC);
+      OutFile = make_unique<raw_fd_ostream>(output_file+".dot", EC);
       if (EC) {
-        llvm::errs() << EC.message() << "\n";
+        errs() << EC.message() << "\n";
         return;
       }
     }
-    dot::printCFG(OutFile ? *(OutFile.get()) : llvm::outs(), CFGs, cg, policy);
+    dot::printCFG(OutFile ? *(OutFile.get()) : outs(), CFGs, cg, policy);
   }
   
   if(OutputJson) {
-    unique_ptr<llvm::raw_ostream> OutFile = nullptr;
+    unique_ptr<raw_ostream> OutFile = nullptr;
     if(!output_file.empty()) {
       error_code EC;
-      OutFile = make_unique<llvm::raw_fd_ostream>(output_file+".json", EC);
+      OutFile = make_unique<raw_fd_ostream>(output_file+".json", EC);
       if (EC) {
-        llvm::errs() << EC.message() << "\n";
+        errs() << EC.message() << "\n";
         return;
       }
     }
-    json::printCFG(OutFile ? *(OutFile.get()) : llvm::outs(), CFGs, cg, policy);
+    json::printCFG(OutFile ? *(OutFile.get()) : outs(), CFGs, cg, policy);
   }
 }
 
 class CFGCallback : public MatchCallback {
 public:
-  CFGCallback(unique_ptr<clang::ASTUnit> AST) : AST(move(AST)) {}
+  CFGCallback(unique_ptr<ASTUnit> AST) : AST(move(AST)) {}
 
-  unique_ptr<clang::ASTUnit> AST;
-  clang::CFG::BuildOptions Options;
+  unique_ptr<ASTUnit> AST;
+  CFG::BuildOptions Options;
   ListCFGs CFGs;
 
   void run(const MatchResult &Result) override {
-    const auto *Func = Result.Nodes.getNodeAs<clang::FunctionDecl>("func");
-    clang::Stmt *Body = Func->getBody();
+    const auto *Func = Result.Nodes.getNodeAs<FunctionDecl>("func");
+    Stmt *Body = Func->getBody();
     if (!Body)
       return;
     Options.AddImplicitDtors = true;
-    unique_ptr<clang::CFG> cfg = clang::CFG::buildCFG(Func, Body, Result.Context, Options);
+    unique_ptr<CFG> cfg = CFG::buildCFG(Func, Body, Result.Context, Options);
     if(cfg) {
       CFGs[Func->getName()] = move(cfg);
     }
   }
 };
 
-class CallGraphExtract : public MatchCallback {
-  clang::CallGraph *callgraph;
-public:
-  explicit CallGraphExtract(clang::CallGraph *cg) : callgraph(cg) {}
-
-  virtual void run(const MatchResult &Result) {
-    if (const clang::FunctionDecl *FS = Result.Nodes.getNodeAs<clang::FunctionDecl>("entrypoint")) {
-      callgraph->VisitFunctionDecl(const_cast<clang::FunctionDecl*>(FS));
-    }
-  }
-};
-
 class ExtendExecInfoFull : public MatchCallback {
   const vector<unsigned char> &bitstream_trace;
-  map<llvm::StringRef, unique_ptr<clang::CFG>> &CFGs;
-  clang::CallGraph *cg;
+  map<StringRef, unique_ptr<CFG>> &CFGs;
+  CallGraph *cg;
 public:
   ExtendExecInfoFull(const vector<unsigned char> &bt,
-  map<llvm::StringRef, unique_ptr<clang::CFG>> &_CFGs, clang::CallGraph *_cg) : 
+  map<StringRef, unique_ptr<CFG>> &_CFGs, CallGraph *_cg) : 
     MatchCallback(), bitstream_trace(bt), CFGs(_CFGs), cg(_cg) {}
 
   ~ExtendExecInfoFull() {}
 
   virtual void run(const MatchResult &Result) override {
-    if (const clang::FunctionDecl *FS = Result.Nodes.getNodeAs<clang::FunctionDecl>("entrypoint")) {
-      llvm::errs() << "Add trace info " << FS->getName() << "\n";
-      clang::StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), FS->getName(), bitstream_trace, IsStructuralAnalysis, IsTemporalAnalysis, TimeBitsSize);
+    if (const FunctionDecl *FS = Result.Nodes.getNodeAs<FunctionDecl>("entrypoint")) {
+      errs() << "Add trace info " << FS->getName() << "\n";
+      StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), FS->getName(), bitstream_trace, IsStructuralAnalysis, IsTemporalAnalysis, TimeBitsSize);
       while(!extend.EOBS()) {
-        extend.VisitFunctionDecl(const_cast<clang::FunctionDecl*>(FS));
+        extend.VisitFunctionDecl(const_cast<FunctionDecl*>(FS));
       }
       for(auto mb : extend.getMissingFunctionBody())
-        llvm::errs() << "Missing function body: " << mb << "\n";
+        errs() << "Missing function body: " << mb << "\n";
     }
   }
 };
 
 class ExtendExecInfoSplitExec : public MatchCallback {
   const vector<unsigned char> &bitstream_trace;
-  map<llvm::StringRef, unique_ptr<clang::CFG>> &CFGs;
-  clang::CallGraph *cg;
+  map<StringRef, unique_ptr<CFG>> &CFGs;
+  CallGraph *cg;
 public:
   ExtendExecInfoSplitExec(const vector<unsigned char> &bt,
-  map<llvm::StringRef, unique_ptr<clang::CFG>> &_CFGs, clang::CallGraph *_cg) : 
+  map<StringRef, unique_ptr<CFG>> &_CFGs, CallGraph *_cg) : 
     MatchCallback(), bitstream_trace(bt), CFGs(_CFGs), cg(_cg) {}
 
   ~ExtendExecInfoSplitExec() {}
 
   virtual void run(const MatchResult &Result) override {
-    if (const clang::FunctionDecl *FS = Result.Nodes.getNodeAs<clang::FunctionDecl>("entrypoint")) {
-      llvm::errs() << "Add trace info " << FS->getName() << "\n";
-      clang::StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), FS->getName(), bitstream_trace, IsStructuralAnalysis, IsTemporalAnalysis, TimeBitsSize);
-      clang::StatInfASTResetExecInfoDecl reset(FS->getASTContext());
+    if (const FunctionDecl *FS = Result.Nodes.getNodeAs<FunctionDecl>("entrypoint")) {
+      errs() << "Add trace info " << FS->getName() << "\n";
+      StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), FS->getName(), bitstream_trace, IsStructuralAnalysis, IsTemporalAnalysis, TimeBitsSize);
+      StatInfASTResetExecInfoDecl reset(FS->getASTContext());
       size_t exec_count = 0;
       while(!extend.EOBS()) {
         ++exec_count;
-        extend.VisitFunctionDecl(const_cast<clang::FunctionDecl*>(FS));
+        extend.VisitFunctionDecl(const_cast<FunctionDecl*>(FS));
         exportCFGs(SplitDir+"/exec_"+to_string(exec_count), FS->getASTContext(), CFGs, cg);
-        reset.VisitFunctionDecl(const_cast<clang::FunctionDecl*>(FS));
+        reset.VisitFunctionDecl(const_cast<FunctionDecl*>(FS));
       }
       for(auto mb : extend.getMissingFunctionBody())
-        llvm::errs() << "Missing function body: " << mb << "\n";
+        errs() << "Missing function body: " << mb << "\n";
     }
   }
 };
 
-static unique_ptr<clang::ASTUnit> extractCFG(unique_ptr<clang::ASTUnit> ast, ListCFGs &CFGs) {
+static unique_ptr<ASTUnit> extractCFG(unique_ptr<ASTUnit> ast, ListCFGs &CFGs) {
   // Configure the CFG builder
-  clang::CFG::BuildOptions Options;
+  CFG::BuildOptions Options;
   Options.AddStaticInitBranches = true;
   Options.setAllAlwaysAdd();
   Options.AddLoopExit = true;
@@ -298,151 +279,80 @@ static unique_ptr<clang::ASTUnit> extractCFG(unique_ptr<clang::ASTUnit> ast, Lis
   return move(Callback.AST);
 }
 
-static unique_ptr<clang::ASTUnit> extractCallGraph(unique_ptr<clang::ASTUnit> ast, clang::CallGraph *cg) {
-  am::DeclarationMatcher entrypoint_match = am::functionDecl(am::hasName(EntryPoint)).bind("entrypoint");
-  cg->shouldVisitRecursively(true);
-  CallGraphExtract extractor(cg);
-  am::MatchFinder Finder;
-  Finder.addMatcher(entrypoint_match, &extractor);
-  Finder.matchAST(ast->getASTContext());
-  return move(ast);
-}
-
 } // namespace
 
 int main(int argc, const char **argv) {
-  llvm::sys::PrintStackTraceOnErrorSignal(argv[0]);
+  sys::PrintStackTraceOnErrorSignal(argv[0]);
 
   EntryPoint.setInitialValue("main");
   TimeBitsSize.setInitialValue(32);
 
   auto ExpectedParser =
-      CommonOptionsParser::create(argc, argv, CFGExtendExecInfoCat, llvm::cl::NumOccurrencesFlag::ZeroOrMore);
+      ct::CommonOptionsParser::create(argc, argv, CFGExtendExecInfoCat, cl::NumOccurrencesFlag::ZeroOrMore);
   if (!ExpectedParser) {
-    llvm::errs() << ExpectedParser.takeError();
+    errs() << ExpectedParser.takeError();
     return 1;
   }
 
   if(!IsStructuralAnalysis && !IsTemporalAnalysis) {
-    llvm::errs() << "Please specify at least one of --structural or --temporal parameters\n";
-    llvm::errs() << ExpectedParser.takeError();
+    errs() << "Please specify at least one of --structural or --temporal parameters\n";
+    errs() << ExpectedParser.takeError();
     return 1;
   }
 
   if(!OutputDot && !OutputJson) {
-    llvm::errs() << "Please specify at least one of --dot or --json parameters\n";
-    llvm::errs() << ExpectedParser.takeError();
+    errs() << "Please specify at least one of --dot or --json parameters\n";
+    errs() << ExpectedParser.takeError();
     return 1;
   }
 
-  CommonOptionsParser &OptionsParser = ExpectedParser.get();
+  ct::CommonOptionsParser &OptionsParser = ExpectedParser.get();
 
   // Get the content of the bitstream trace file
   vector<uint8_t> *bitstream_trace = nullptr;
   if(!BitstreamFile.empty()) {
     ifstream bitstream_fs(BitstreamFile, ios::binary);
     if(!bitstream_fs.is_open()) {
-      llvm::errs() << "Error opening " << BitstreamFile << "\n";
+      errs() << "Error opening " << BitstreamFile << "\n";
       return 1;
     }
     bitstream_trace = new vector<uint8_t>(istreambuf_iterator<char>(bitstream_fs), {});
     bitstream_fs.close();
   }
 
-  vector<string> args{"-Wno-int-conversion", 
-    "-Wno-unused-value", 
-    "-Wno-implicit-function-declaration", 
-    "-Wno-shift-count-overflow",
-    "-Wno-parentheses-equality",
-    "-Wno-main-return-type",
-    "-Wno-missing-declarations"};
-
-  shared_ptr<clang::PCHContainerOperations> PCHContainerOps = make_shared<clang::PCHContainerOperations>();
-  vector<string> AbsolutePaths;
-  llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> OverlayFileSystem(
-    new llvm::vfs::OverlayFileSystem(llvm::vfs::getRealFileSystem())
+  shared_ptr<PCHContainerOperations> PCHContainerOps = make_shared<PCHContainerOperations>();
+  vector<string> C_files, other_files;
+  IntrusiveRefCntPtr<vfs::OverlayFileSystem> OverlayFileSystem(
+    new vfs::OverlayFileSystem(vfs::getRealFileSystem())
   );
 
-  // Compute all absolute paths before we run any actions, as those will change
-  // the working directory.
-  AbsolutePaths.reserve(OptionsParser.getSourcePathList().size());
-  for (const auto &SourcePath : OptionsParser.getSourcePathList()) {
-    auto AbsPath = getAbsolutePath(*OverlayFileSystem, SourcePath);
-    if (!AbsPath) {
-      llvm::errs() << "Skipping " << SourcePath
-                  << ". Error while getting an absolute path: "
-                  << llvm::toString(AbsPath.takeError()) << "\n";
-      continue;
-    }
-    AbsolutePaths.push_back(move(*AbsPath));
-  }
+  get_c_files_from_cmdline(C_files, *OverlayFileSystem, OptionsParser);
 
-  if(!InputDir.empty() && !AbsolutePaths.empty()) {
+  if(!InputDir.empty() && !C_files.empty()) {
     errs() << "Can't provide a list of files and an input-dir to scan for source files.\n";
     return 1;
   }
 
   // Scan for additional C files and directories to put in the include paths from a given root project
-  scandir(*OverlayFileSystem, InputDir, IncludePath, AbsolutePaths);
+  scandir(*OverlayFileSystem, InputDir, IncludePath, C_files, other_files, Filter);
 
-  // Add include paths
-  for(auto I : IncludePath) {
-    auto AbsPath = getAbsolutePath(*OverlayFileSystem, I);
-    if (!AbsPath) {
-      llvm::errs() << "Skipping " << I
-                  << ". Error while getting an absolute path: "
-                  << llvm::toString(AbsPath.takeError()) << "\n";
-      continue;
-    }
-    args.push_back("-I"+string(AbsPath->c_str()));
-  }
-
-  // Add def symbols
-  for(auto D : Definitions) {
-    args.push_back("-D"+D);
-  }
+  add_include_paths_in_clangtoolarg(IncludePath, *OverlayFileSystem);
+  add_defs_in_clangtoolarg(Definitions);
 
   //Build an empty AST
-  unique_ptr<clang::ASTUnit> ast = buildASTFromCode("", "empty.c");
+  unique_ptr<ASTUnit> ast = ct::buildASTFromCode("", "empty.c");
+  map<StringRef, unique_ptr<ASTUnit>> ast_books;
 
+  IntrusiveRefCntPtr<DiagnosticOptions> diagopts = new DiagnosticOptions;
+  diagopts->ShowColors = true;
+  StatInfDiagnosticPrinter diagprinter(llvm::errs(), diagopts);
   //Build all other ASTs and merge them into the empty one
-  for (llvm::StringRef File : AbsolutePaths) {
-    //get file content
-    ifstream ifs(File.str());
-    string content( (istreambuf_iterator<char>(ifs) ),
-                      (istreambuf_iterator<char>()    ) );
-    clang::tooling::FileContentMappings files;
-    files.push_back(make_pair(File.str(), content));
-
-    //build ast
-    unique_ptr<clang::ASTUnit> tmp_ast = buildASTFromCodeWithArgs(
-        content, args, File.str(), "statinf-CFG-with-trace", PCHContainerOps,
-        clang::tooling::getClangStripDependencyFileAdjuster(), files
-    );
-    if(tmp_ast == nullptr) {
-      llvm::errs() << "No AST have been built for " << File.str() << "\n";
-      return -1;
-    }
-
-    //import each toplevel declaration one by one
-    clang::ASTImporter Importer(ast->getASTContext(), ast->getFileManager(),
-                     tmp_ast->getASTContext(), tmp_ast->getFileManager(),
-                     /*MinimalImport=*/false);
-    for(auto decl : tmp_ast->getASTContext().getTranslationUnitDecl()->decls()) {
-      auto ImportedOrErr = Importer.Import(decl);
-      if (!ImportedOrErr) {
-        llvm::Error Err = ImportedOrErr.takeError();
-        llvm::errs() << "ERROR: " << Err << "\n";
-        consumeError(move(Err));
-        return 1;
-      }
-    }
-  }
+  build_ast_book(ast_books, ast.get(), C_files, args_for_clangtool, &diagprinter);
 
   ListCFGs CFGs;
   ast = extractCFG(move(ast), CFGs);
-  clang::CallGraph cg;
-  ast = extractCallGraph(move(ast), &cg);
+  CallGraph cg;
+  extractCallGraph(ast.get(), &cg, EntryPoint);
 
   // Add the execution information from the trace
   if(bitstream_trace) {
