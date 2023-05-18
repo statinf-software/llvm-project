@@ -1,6 +1,5 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/Frontend/ASTConsumers.h"
-#include "clang/Tooling/CommonOptionsParser.h"
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/Signals.h"
 #include "clang/AST/StatInfInstrDeclPrinter.h"
@@ -182,19 +181,7 @@ int main(int argc, const char **argv) {
       new vfs::OverlayFileSystem(vfs::getRealFileSystem())
     );
 
-    // Compute all absolute paths before we run any actions, as those will change
-    // the working directory.
-    C_files.reserve(OptionsParser.getSourcePathList().size());
-    for (const auto &SourcePath : OptionsParser.getSourcePathList()) {
-      auto AbsPath = ct::getAbsolutePath(*OverlayFileSystem, SourcePath);
-      if (!AbsPath) {
-        errs() << "Skipping " << SourcePath
-                    << ". Error while getting an absolute path: "
-                    << toString(AbsPath.takeError()) << "\n";
-        continue;
-      }
-      C_files.push_back(move(*AbsPath));
-    }
+    get_c_files_from_cmdline(C_files, *OverlayFileSystem, OptionsParser);
 
     if(!InputDir.empty() && !C_files.empty()) {
       errs() << "Can't provide a list of files and an input-dir to scan for source files.\n";
@@ -237,14 +224,8 @@ int main(int argc, const char **argv) {
     //Build all other ASTs and merge them into the empty one
     build_ast_book(ast_books, ast.get(), C_files, args_for_clangtool, &diagprinter);
 
-    // Extract the call graph from the given entrypoint
-    ast_matchers::DeclarationMatcher entrypoint_match = am::functionDecl(am::hasName(EntryPoint)).bind("entrypoint");
-    CallGraph cg;
-    cg.shouldVisitRecursively(true);
-    CallGraphExtract extractor(&cg);
-    am::MatchFinder Finder;
-    Finder.addMatcher(entrypoint_match, &extractor);
-    Finder.matchAST(ast->getASTContext());
+    clang::CallGraph cg;
+    extractCallGraph(ast.get(), &cg, EntryPoint);
 
     if(ast_books.size() == 1) {
       auto &astunit = *(ast_books.begin());
