@@ -1,20 +1,12 @@
 #include "clang/AST/ASTConsumer.h"
-#include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/ASTMatchers/ASTMatchers.h"
-#include "clang/Driver/Options.h"
 #include "clang/Frontend/ASTConsumers.h"
-#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Tooling/CommonOptionsParser.h"
-#include "clang/Tooling/Tooling.h"
 #include "llvm/Option/OptTable.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Signals.h"
 #include "clang/AST/StatInfInstrDeclPrinter.h"
 #include "clang/Frontend/CompilerInstance.h"
-#include "clang/AST/StmtVisitor.h"
-#include "clang/Tooling/ArgumentsAdjusters.h"
-#include "clang/Analysis/CallGraph.h"
-#include "clang/AST/ASTImporter.h"
+
+#include "../StatInfCommon/StatInfUtils.h"
 
 #include <iostream>
 #include <string>
@@ -29,8 +21,6 @@ using namespace std;
 namespace cd = clang::driver;
 namespace ct = clang::tooling;
 namespace am = clang::ast_matchers;
-using MatchResult = am::MatchFinder::MatchResult;
-using MatchCallback = am::MatchFinder::MatchCallback;
 
 static cl::extrahelp CommonHelp(ct::CommonOptionsParser::HelpMessage);
 static cl::extrahelp MoreHelp(
@@ -87,66 +77,38 @@ static cl::opt<bool>
       cl::desc("Export intermediate C file"),
       cl::cat(StatInfInstrCategory)
     );
+static cl::opt<string>
+    Filter("filter",
+      cl::desc("Filter out files that matches the given pattern, the full path is checked so a full directory can been filter out."),
+      cl::cat(StatInfInstrCategory)
+    );
                 
 namespace {
-
-class CallGraphExtract : public MatchCallback {
-  CallGraph *callgraph;
-public:
-  explicit CallGraphExtract(CallGraph *cg) : callgraph(cg) {}
-
-  virtual void run(const MatchResult &Result) {
-    if (const FunctionDecl *FS = Result.Nodes.getNodeAs<FunctionDecl>("entrypoint")) {
-      callgraph->VisitFunctionDecl(const_cast<FunctionDecl*>(FS));
-    }
-  }
-};
 
 class StatInfPrinterLauncher : public ASTConsumer {
   raw_ostream &OS;
   CallGraph *callgraph;
-  bool disable_structural;
-  bool disable_temporal;
+  bool enable_structural;
+  bool enable_temporal;
 
 public:
-  explicit StatInfPrinterLauncher(raw_ostream &os, CallGraph *cg, bool dis_st, bool dis_temp) : 
+  explicit StatInfPrinterLauncher(raw_ostream &os, CallGraph *cg, bool en_st, bool en_temp) : 
     ASTConsumer(), OS(os), callgraph(cg),
-    disable_structural(dis_st), disable_temporal(dis_temp) {}
+    enable_structural(en_st), enable_temporal(en_temp) {}
 
   void HandleTranslationUnit(ASTContext &Context) override {
     StatInfInstrDeclPrinter printer(OS, Context.getPrintingPolicy(), 
       Context, callgraph, 
-      disable_structural, disable_temporal, 
+      enable_structural, enable_temporal, 
       InstrMacroDefFilePath, EntryPoint);
     auto TU = Context.getTranslationUnitDecl();
     printer.Visit(TU);
   }
 };
 
-static void scandir(vfs::FileSystem &fs, StringRef dirname, cl::list<string> &dirs, vector<string> &C_files) {
-  dirs.push_back(*(ct::getAbsolutePath(fs, dirname)));
-  error_code EC;
-  for(vfs::directory_iterator elt = fs.dir_begin(dirname, EC), dirend ; elt != dirend && !EC; elt.increment(EC)) {
-    if (elt->path().endswith(".c"))
-      C_files.push_back(*(ct::getAbsolutePath(fs, elt->path())));
-    else if(elt->type() == sys::fs::file_type::directory_file)
-      scandir(fs, elt->path(), dirs, C_files);
-  }
-}
-
-static error_code create_directory_recursive(StringRef dir) {
-  if(dir.empty())
-    return error_code();
-  StringRef parent_dir = dir.substr(0, dir.find_last_of("/"));
-  error_code ec = create_directory_recursive(parent_dir);
-  if(ec.value() != 0)
-    return ec;
-
-  return sys::fs::create_directory(dir);
-}
-
 static error_code processASTUnit(const string &input_file, const string &output_file, const string &intermediate_file, 
-  unique_ptr<ASTUnit> current_ast, CallGraph *cg, const vector<string> &args) {
+  unique_ptr<ASTUnit> current_ast, CallGraph *cg, const vector<string> &args,
+  DiagnosticConsumer *diagcons) {
 
   string output_dir = output_file.substr(0, output_file.find_last_of("/"));
   error_code ec = create_directory_recursive(output_dir);
@@ -171,9 +133,12 @@ static error_code processASTUnit(const string &input_file, const string &output_
     ios << new_code << "\n";
   }
 
+  shared_ptr<PCHContainerOperations> PCHContainerOps = make_shared<PCHContainerOperations>();
   // Finally re-preprocess to unroll StatInf instrumentation macros
   unique_ptr<ASTUnit> final_ast = ct::buildASTFromCodeWithArgs(
-    new_code, args, intermediate_file, "statinf-instrumentation"
+    new_code, args, intermediate_file, "statinf-instrumentation",PCHContainerOps,
+      tooling::getClangStripDependencyFileAdjuster(), tooling::FileContentMappings(),
+      diagcons
   );
   ec.clear();
   raw_fd_ostream OutFile(output_file, ec);
@@ -186,6 +151,7 @@ static error_code processASTUnit(const string &input_file, const string &output_
   launch2.HandleTranslationUnit(final_ast->getASTContext());
   return error_code();
 }
+
 } // namespace
 
 int main(int argc, const char **argv) {
@@ -207,26 +173,18 @@ int main(int argc, const char **argv) {
     }
 
     if(!InputDir.empty() && OutputDir.empty()) {
-      OutputDir = (string)InputDir;
+      errs() << "Please provide an output dir when providing an input dir\n";
+      return 1;
     }
 
-    vector<string> args{"-Wno-int-conversion", 
-    "-Wno-unused-value", 
-    "-Wno-implicit-function-declaration", 
-    "-Wno-shift-count-overflow",
-    "-Wno-parentheses-equality",
-    "-Wno-main-return-type",
-    "-Wno-missing-declarations"};
-
-    shared_ptr<PCHContainerOperations> PCHContainerOps = make_shared<PCHContainerOperations>();
-    vector<string> AbsolutePaths;
+    vector<string> C_files, other_files;
     IntrusiveRefCntPtr<vfs::OverlayFileSystem> OverlayFileSystem(
       new vfs::OverlayFileSystem(vfs::getRealFileSystem())
     );
 
     // Compute all absolute paths before we run any actions, as those will change
     // the working directory.
-    AbsolutePaths.reserve(OptionsParser.getSourcePathList().size());
+    C_files.reserve(OptionsParser.getSourcePathList().size());
     for (const auto &SourcePath : OptionsParser.getSourcePathList()) {
       auto AbsPath = ct::getAbsolutePath(*OverlayFileSystem, SourcePath);
       if (!AbsPath) {
@@ -235,78 +193,49 @@ int main(int argc, const char **argv) {
                     << toString(AbsPath.takeError()) << "\n";
         continue;
       }
-      AbsolutePaths.push_back(move(*AbsPath));
+      C_files.push_back(move(*AbsPath));
     }
 
-    if(!InputDir.empty() && !AbsolutePaths.empty()) {
+    if(!InputDir.empty() && !C_files.empty()) {
       errs() << "Can't provide a list of files and an input-dir to scan for source files.\n";
       return 1;
     }
 
-    // Scan for additional C files and directories to put in the include paths from a given root project
-    scandir(*OverlayFileSystem, InputDir, IncludePath, AbsolutePaths);
+    if(InputDir.empty() && !C_files.empty()) {
+      errs() << "To provide multiple source files, we only allow to have them within the same input dir, provided with the --input-dir option\n";
+      return 1;
+    }
 
-    if(AbsolutePaths.size() > 1 && !Out.empty()) {
+    string full_input_dir_path = get_full_path(InputDir);
+    string full_output_dir_path = get_create_full_path(OutputDir, *OverlayFileSystem);
+    if(!full_input_dir_path.empty() && full_input_dir_path == full_output_dir_path) {
+      errs() << "Output dir and Input dir must be different\n";
+      return 1;
+    }
+
+    if(!full_input_dir_path.empty()) {
+      // Scan for additional C files and directories to put in the include paths from a given root project
+      scandir(*OverlayFileSystem, full_input_dir_path, IncludePath, C_files, other_files, Filter);
+    }
+
+    if(C_files.size() > 1 && !Out.empty()) {
       errs() << "Can't provide the -o option if there is more that one source file to handle, use --output-dir instead\n";
       return 1;
     }
 
-    // Add include paths
-    for(auto I : IncludePath) {
-      auto AbsPath = ct::getAbsolutePath(*OverlayFileSystem, I);
-      if (!AbsPath) {
-        errs() << "Skipping " << I
-                    << ". Error while getting an absolute path: "
-                    << toString(AbsPath.takeError()) << "\n";
-        continue;
-      }
-      args.push_back("-I"+string(AbsPath->c_str()));
-    }
-
-    // Add def symbols
-    for(auto D : Definitions) {
-      args.push_back("-D"+D);
-    }
+    add_include_paths_in_clangtoolarg(IncludePath, *OverlayFileSystem);
+    add_defs_in_clangtoolarg(Definitions);
 
       //Build an empty AST
     unique_ptr<ASTUnit> ast = ct::buildASTFromCode("", "empty.c");
 
     map<StringRef, unique_ptr<ASTUnit>> ast_books;
 
+    IntrusiveRefCntPtr<DiagnosticOptions> diagopts = new DiagnosticOptions;
+    diagopts->ShowColors = true;
+    StatInfDiagnosticPrinter diagprinter(llvm::errs(), diagopts);
     //Build all other ASTs and merge them into the empty one
-    for (StringRef File : AbsolutePaths) {
-      //get file content
-      ifstream ifs(File.str());
-      string content( (istreambuf_iterator<char>(ifs) ),
-                        (istreambuf_iterator<char>()    ) );
-      tooling::FileContentMappings files;
-      files.push_back(make_pair(File.str(), content));
-
-      //build ast
-      unique_ptr<ASTUnit> tmp_ast = ct::buildASTFromCodeWithArgs(
-          content, args, File.str(), "statinf-CFG-with-trace", PCHContainerOps,
-          tooling::getClangStripDependencyFileAdjuster(), files
-      );
-      if(tmp_ast == nullptr) {
-        errs() << "No AST have been built for " << File.str() << "\n";
-        return -1;
-      }
-
-      //import each toplevel declaration one by one
-      ASTImporter Importer(ast->getASTContext(), ast->getFileManager(),
-                      tmp_ast->getASTContext(), tmp_ast->getFileManager(),
-                      /*MinimalImport=*/false);
-      for(auto decl : tmp_ast->getASTContext().getTranslationUnitDecl()->decls()) {
-        auto ImportedOrErr = Importer.Import(decl);
-        if (!ImportedOrErr) {
-          Error Err = ImportedOrErr.takeError();
-          errs() << "ERROR: " << Err << "\n";
-          consumeError(move(Err));
-          return 1;
-        }
-      }
-      ast_books[File] = move(tmp_ast);
-    }
+    build_ast_book(ast_books, ast.get(), C_files, args_for_clangtool, &diagprinter);
 
     // Extract the call graph from the given entrypoint
     ast_matchers::DeclarationMatcher entrypoint_match = am::functionDecl(am::hasName(EntryPoint)).bind("entrypoint");
@@ -329,58 +258,45 @@ int main(int argc, const char **argv) {
       else
         intermediate_file = replaceAll(Out, ".c", ".inter.c");
       
-      error_code ec = processASTUnit(astunit.first.str(), Out, intermediate_file, move(astunit.second), &cg, args);
+      auto printer = CreateASTPrinter(nullptr, "");
+      printer->Initialize(astunit.second->getASTContext());
+      printer->HandleTranslationUnit(astunit.second->getASTContext());
+
+      error_code ec = processASTUnit(astunit.first.str(), Out, intermediate_file, move(astunit.second), &cg, args_for_clangtool, &diagprinter);
       if(ec.value()) {
         errs() << ec.message() << "\n";
         return EXIT_FAILURE;
       }
     }
     else {
-      // Get input folder
-      string full_input_dir_path;
-      if(!InputDir.empty()) {
-        SmallVector<char> tmp_path;
-        sys::fs::real_path(InputDir, tmp_path, true);
-        full_input_dir_path = string(tmp_path.data(), tmp_path.size());
-      }
-      // Prepare output folder
-      string full_output_dir_path;
-      if(!OutputDir.empty()) {
-        string tmp_full_output_dir_path = *(ct::getAbsolutePath(*OverlayFileSystem, OutputDir));
-        error_code ec = sys::fs::create_directory(tmp_full_output_dir_path);
-        if(ec.value()) {
-          errs() << ec.message() << " -- " << tmp_full_output_dir_path << "\n";
-          return 1;
-        }
-        SmallVector<char> tmp_path;
-        sys::fs::real_path(tmp_full_output_dir_path, tmp_path, true);
-        full_output_dir_path = string(tmp_path.data(), tmp_path.size());
-      }
-
       for(auto &astunit : ast_books) {
         unique_ptr<ASTUnit> &current_ast = astunit.second;
 
-        // Get input folder
-        if(InputDir.empty()) {
-          string current_file = astunit.first.str();
-          SmallVector<char> tmp_path;
-          sys::fs::real_path(current_file.substr(0, current_file.find_last_of("/")), tmp_path, true);
-          full_input_dir_path = string(tmp_path.data(), tmp_path.size());
-        }
-
-
         string output_file = astunit.first.str();
-        if(!full_output_dir_path.empty())
-          output_file = replaceAll(output_file, full_input_dir_path, full_output_dir_path);
-        output_file = replaceAll(output_file, ".c", ".inst.c"); //FIXME: find a way to get the extension depending on language setting
+        output_file = replaceAll(output_file, full_input_dir_path, full_output_dir_path);
+        // output_file = replaceAll(output_file, ".c", ".inst.c"); //FIXME: find a way to get the extension depending on language setting
 
-        string intermediate_file = replaceAll(output_file, ".inst.c", ".inter.c");
+        string intermediate_file = replaceAll(output_file, ".c", ".inter.c");
 
-        error_code ec = processASTUnit(astunit.first.str(), output_file, intermediate_file, move(current_ast), &cg, args);
+        error_code ec = processASTUnit(astunit.first.str(), output_file, intermediate_file, move(current_ast), &cg, args_for_clangtool, &diagprinter);
         if(ec.value()) {
           errs() << ec.message() << "\n";
           return EXIT_FAILURE;
         }
+      }
+      for(string file : other_files) {
+        string output_file = replaceAll(file, full_input_dir_path, full_output_dir_path);
+        ifstream ifs(file);
+        string content( (istreambuf_iterator<char>(ifs) ),
+                          (istreambuf_iterator<char>()    ) );
+        string output_dir = output_file.substr(0, output_file.find_last_of("/"));
+        error_code ec = create_directory_recursive(output_dir);
+        if(ec.value()) {
+          errs() << output_dir << ": ";
+          return 1;
+        }
+        ofstream ofs(output_file);
+        ofs << content;
       }
     }
 
