@@ -577,8 +577,10 @@ ExprDependence clang::computeDependence(RecoveryExpr *E) {
            ExprDependence::ErrorDependent;
   // FIXME: remove the type-dependent bit from subexpressions, if the
   // RecoveryExpr has a non-dependent type.
-  for (auto *S : E->subExpressions())
-    D |= S->getDependence();
+  for (auto *S : E->subExpressions()) {
+    if(S)
+      D |= S->getDependence();
+  }
   return D;
 }
 

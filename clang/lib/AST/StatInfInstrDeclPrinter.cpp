@@ -364,9 +364,9 @@ void StatInfInstrDeclPrinter::VisitDeclContext(DeclContext *DC, bool Indent) {
 }
 
 void StatInfInstrDeclPrinter::VisitTranslationUnitDecl(TranslationUnitDecl *D) {
-  if(callgraph) {
+  if(callgraph && (EnableStructuralAnalysis || EnableTemporalAnalysis)) {
     for(Decl *d : D->decls()) {
-      if(isa<FunctionDecl>(d) && callgraph->getNode(d->getAsFunction()->getName())) {
+      if(isa<FunctionDecl>(d) && d->getAsFunction()->hasBody() && callgraph->getNode(d->getAsFunction()->getName())) {
         first_function_with_instrumentation = dyn_cast<FunctionDecl>(d);
         break;
       }
@@ -474,6 +474,8 @@ void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     Out << "#include \""<< fullpath_instr_file << "\"" << "\n";
     if(astunit_contains_entrypoint)
       Out << "STATINF_GLOBAL_INIT();\n";
+    else
+      Out << "STATINF_GLOBAL_INIT_EXTERN();\n";
   }
   if (!D->getDescribedFunctionTemplate() &&
       !D->isFunctionTemplateSpecialization())
@@ -687,7 +689,7 @@ void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
           - structural: the function is in the call graph
           - temporal: the function is the entrypoint given by the user
         */
-        if(EnableStructuralAnalysis && callgraph->getNode(D->getName()))
+        if(EnableStructuralAnalysis && callgraph && callgraph->getNode(D->getName()))
           P.SetEnableInstrumentation();
         if(EnableTemporalAnalysis && D->getName() == entrypoint_func_name.str())
           P.SetEnableInstrumentation();

@@ -17,4 +17,5 @@ clang_target_link_libraries(statinf-instrumentation
   clangTooling
   clangToolingSyntax
   clangAnalysis
+  libstatinfclang
   )
