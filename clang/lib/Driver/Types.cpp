@@ -294,6 +294,7 @@ types::ID types::lookupTypeForExtension(llvm::StringRef Ext) {
   return llvm::StringSwitch<types::ID>(Ext)
            .Case("c", TY_C)
            .Case("cla", TY_C) //Liebherr
+           .Case("pp", TY_C) //Preprocessed TI compiler extension
            .Case("C", TY_CXX)
            .Case("F", TY_Fortran)
            .Case("f", TY_PP_Fortran)
