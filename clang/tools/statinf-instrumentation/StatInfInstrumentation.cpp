@@ -177,6 +177,7 @@ int main(int argc, const char **argv) {
     }
 
     vector<string> C_files, other_files;
+    map<string,string> pp_c_match;
     IntrusiveRefCntPtr<vfs::OverlayFileSystem> OverlayFileSystem(
       new vfs::OverlayFileSystem(vfs::getRealFileSystem())
     );
@@ -202,7 +203,7 @@ int main(int argc, const char **argv) {
 
     if(!full_input_dir_path.empty()) {
       // Scan for additional C files and directories to put in the include paths from a given root project
-      scandir(*OverlayFileSystem, full_input_dir_path, IncludePath, C_files, other_files, Filter);
+      scandir(*OverlayFileSystem, full_input_dir_path, IncludePath, C_files, other_files, pp_c_match, Filter);
     }
 
     if(C_files.size() > 1 && !Out.empty()) {
@@ -254,8 +255,12 @@ int main(int argc, const char **argv) {
         unique_ptr<ASTUnit> &current_ast = astunit.second;
 
         string output_file = astunit.first.str();
+        bool pp_used = false;
+        if(pp_c_match.count(output_file)) {
+          output_file = pp_c_match[output_file];
+          pp_used = true;
+        }
         output_file = replaceAll(output_file, full_input_dir_path, full_output_dir_path);
-        // output_file = replaceAll(output_file, ".c", ".inst.c"); //FIXME: find a way to get the extension depending on language setting
 
         string intermediate_file = replaceAll(output_file, ".c", ".inter.c");
 

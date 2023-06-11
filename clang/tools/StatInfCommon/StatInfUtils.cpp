@@ -108,19 +108,51 @@ int build_ast_book(map<StringRef, unique_ptr<ASTUnit>> &ast_book,
   return 0;
 }
 
-void scandir(vfs::FileSystem &fs, StringRef dirname, cl::list<string> &dirs, vector<string> &C_files, vector<string> &other_files, string Filter) {
+void scandir(vfs::FileSystem &fs, StringRef dirname, cl::list<string> &dirs, vector<string> &C_files, vector<string> &other_files, map<string,string> &pp_c_match, string Filter) {
   dirs.push_back(*(ct::getAbsolutePath(fs, dirname)));
   error_code EC;
+  vector<string> pp_cfiles;
   for(vfs::directory_iterator elt = fs.dir_begin(dirname, EC), dirend ; elt != dirend && !EC; elt.increment(EC)) {
     if(!Filter.empty() && elt->path().str().find(Filter) != string::npos)
       continue;
     if(elt->type() == sys::fs::file_type::directory_file)
-      scandir(fs, elt->path(), dirs, C_files, other_files, Filter);
+      scandir(fs, elt->path(), dirs, C_files, other_files, pp_c_match, Filter);
     else if (elt->path().endswith(".c") || elt->path().endswith(".cla"))
       C_files.push_back(*(ct::getAbsolutePath(fs, elt->path())));
+    else if (elt->path().endswith(".pp")) 
+      pp_cfiles.push_back(*(ct::getAbsolutePath(fs, elt->path())));
     else 
       other_files.push_back(*(ct::getAbsolutePath(fs, elt->path())));
   }
+  
+  if(!pp_cfiles.empty()) {
+    for(string ppfile : pp_cfiles) {
+      size_t pos = ppfile.find_last_of('.');
+      string ppfile_noext = ppfile.substr(0, pos);
+      auto it = find_if(C_files.begin(), C_files.end(), [ppfile_noext](const string &cfile) {
+        size_t pos = cfile.find_last_of('.');
+        return ppfile_noext == cfile.substr(0, pos);
+      });
+      if(it != C_files.end()) {
+        pp_c_match[ppfile] = *it;
+        C_files.erase(it);
+        C_files.push_back(ppfile);
+      }
+    }
+
+    //If we have some PP files, then we only want PP files not a mix of .c/.cla
+    vector<vector<string>::iterator> to_delete;
+    for(auto it = C_files.begin(), et=C_files.end() ; it != et ; ++it) {
+      size_t pos = it->find_last_of('.');
+      string ext = it->substr(pos, it->size());
+      if(ext == ".c" || ext == ".cla") {
+        to_delete.push_back(it);
+      }
+    }
+    for(auto it : to_delete) {
+      C_files.erase(it);
+    }
+  } 
 }
 
 error_code create_directory_recursive(StringRef dir) {
