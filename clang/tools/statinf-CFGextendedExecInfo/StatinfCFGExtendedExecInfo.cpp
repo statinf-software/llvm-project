@@ -47,8 +47,6 @@
 
 #include <vector>
 #include <string>
-#include <fstream>
-#include <iostream>
 
 using namespace llvm;
 using namespace clang;
@@ -82,21 +80,21 @@ static cl::opt<string>
     cl::desc("Trace file containing the bitstream of an execution (full path)"),
     cl::cat(CFGExtendExecInfoCat)
   );
-static cl::opt<bool>
-    IsStructuralAnalysis("structural",
-      cl::desc("The provided trace is contains structural execution information (if-then-else, loops, ...)"),
-      cl::cat(CFGExtendExecInfoCat)
-    );
-static cl::opt<bool>
-    IsTemporalAnalysis("temporal",
-      cl::desc("The provided trace is contains temporal execution information (uniquement entrypoint)"),
-      cl::cat(CFGExtendExecInfoCat)
-    );
-static cl::opt<size_t>
-    TimeBitsSize("time-num-bits",
-      cl::desc("Number of bits to represent a timestamp for the temporal analysis -- default 32 bits"),
-      cl::cat(CFGExtendExecInfoCat)
-    );
+// static cl::opt<bool>
+//     IsStructuralAnalysis("structural",
+//       cl::desc("The provided trace is contains structural execution information (if-then-else, loops, ...)"),
+//       cl::cat(CFGExtendExecInfoCat)
+//     );
+// static cl::opt<bool>
+//     IsTemporalAnalysis("temporal",
+//       cl::desc("The provided trace is contains temporal execution information (uniquement entrypoint)"),
+//       cl::cat(CFGExtendExecInfoCat)
+//     );
+// static cl::opt<size_t>
+//     TimeBitsSize("time-num-bits",
+//       cl::desc("Number of bits to represent a timestamp for the temporal analysis -- default 32 bits"),
+//       cl::cat(CFGExtendExecInfoCat)
+//     );
 static cl::opt<bool>
   OutputDot("dot",
     cl::desc("Enable output in dot format and store it in the given file, dot extension will automatically be added"),
@@ -148,6 +146,16 @@ static cl::opt<string>
       cl::desc("Filter out files that matches the given pattern, the full path is checked so a full directory can been filter out."),
       cl::cat(CFGExtendExecInfoCat)
     );
+static cl::opt<string>
+    Endianness("endianness",
+    cl::desc("Endianness of the trace file, default: big. Possible values 'little' or 'big'"),
+    cl::cat(CFGExtendExecInfoCat)
+    );
+static cl::opt<size_t>
+    TraceSize("trace-size",
+    cl::desc("Size of a single trace, remind that a bitstream data file can contain multiple traces"),
+    cl::cat(CFGExtendExecInfoCat)
+  );
 
 namespace {
 
@@ -205,21 +213,21 @@ public:
 };
 
 class ExtendExecInfoFull : public MatchCallback {
-  const vector<unsigned char> &bitstream_trace;
+  StatInfASTExtendExecInfoDecl::Bitstream *bitstream;
   map<StringRef, unique_ptr<CFG>> &CFGs;
   CallGraph *cg;
 public:
-  ExtendExecInfoFull(const vector<unsigned char> &bt,
+  ExtendExecInfoFull(StatInfASTExtendExecInfoDecl::Bitstream * &bt,
   map<StringRef, unique_ptr<CFG>> &_CFGs, CallGraph *_cg) : 
-    MatchCallback(), bitstream_trace(bt), CFGs(_CFGs), cg(_cg) {}
+    MatchCallback(), bitstream(bt), CFGs(_CFGs), cg(_cg) {}
 
   ~ExtendExecInfoFull() {}
 
   virtual void run(const MatchResult &Result) override {
     if (const FunctionDecl *FS = Result.Nodes.getNodeAs<FunctionDecl>("entrypoint")) {
-      errs() << "Add trace info " << FS->getName() << "\n";
-      StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), FS->getName(), bitstream_trace, IsStructuralAnalysis, IsTemporalAnalysis, TimeBitsSize);
-      while(!extend.EOBS()) {
+      // errs() << "Add trace info " << FS->getName() << "\n";
+      StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), FS->getName(), bitstream/*, IsStructuralAnalysis, IsTemporalAnalysis*/);
+      while(!bitstream->EOFile()) {
         extend.VisitFunctionDecl(const_cast<FunctionDecl*>(FS));
       }
       for(auto mb : extend.getMissingFunctionBody())
@@ -229,23 +237,23 @@ public:
 };
 
 class ExtendExecInfoSplitExec : public MatchCallback {
-  const vector<unsigned char> &bitstream_trace;
+  StatInfASTExtendExecInfoDecl::Bitstream *bitstream;
   map<StringRef, unique_ptr<CFG>> &CFGs;
   CallGraph *cg;
 public:
-  ExtendExecInfoSplitExec(const vector<unsigned char> &bt,
+  ExtendExecInfoSplitExec(StatInfASTExtendExecInfoDecl::Bitstream *bt,
   map<StringRef, unique_ptr<CFG>> &_CFGs, CallGraph *_cg) : 
-    MatchCallback(), bitstream_trace(bt), CFGs(_CFGs), cg(_cg) {}
+    MatchCallback(), bitstream(bt), CFGs(_CFGs), cg(_cg) {}
 
   ~ExtendExecInfoSplitExec() {}
 
   virtual void run(const MatchResult &Result) override {
     if (const FunctionDecl *FS = Result.Nodes.getNodeAs<FunctionDecl>("entrypoint")) {
       errs() << "Add trace info " << FS->getName() << "\n";
-      StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), FS->getName(), bitstream_trace, IsStructuralAnalysis, IsTemporalAnalysis, TimeBitsSize);
+      StatInfASTExtendExecInfoDecl extend(FS->getASTContext(), FS->getName(), bitstream/*, IsStructuralAnalysis, IsTemporalAnalysis*/);
       StatInfASTResetExecInfoDecl reset(FS->getASTContext());
       size_t exec_count = 0;
-      while(!extend.EOBS()) {
+      while(!bitstream->EOFile()) {
         ++exec_count;
         extend.VisitFunctionDecl(const_cast<FunctionDecl*>(FS));
         exportCFGs(SplitDir+"/exec_"+to_string(exec_count), FS->getASTContext(), CFGs, cg);
@@ -279,13 +287,47 @@ static unique_ptr<ASTUnit> extractCFG(unique_ptr<ASTUnit> ast, ListCFGs &CFGs) {
   return move(Callback.AST);
 }
 
+class LoopExecCountInfo : public MatchCallback {
+  string current_func="";
+  CallGraph *callgraph;
+public:
+  explicit LoopExecCountInfo(CallGraph *cg) : callgraph(cg) {}
+
+  virtual void run(const MatchResult &Result) {
+    string loc;
+    uint32_t exec_count;
+    if (const FunctionDecl *F = Result.Nodes.getNodeAs<FunctionDecl>("func")) {
+      current_func = F->getName().str();
+      return;
+    }
+
+    if(!callgraph->getNode(current_func))
+      return;
+    
+    if (const DoStmt *S = Result.Nodes.getNodeAs<DoStmt>("dostmt")) {
+       loc = S->getBeginLoc().printToString(*Result.SourceManager);
+       exec_count = S->getExecCount();
+    }
+    else if (const ForStmt *S = Result.Nodes.getNodeAs<ForStmt>("forstmt")) {
+       loc = S->getBeginLoc().printToString(*Result.SourceManager);
+       exec_count = S->getExecCount();
+    }
+    else if (const WhileStmt *S = Result.Nodes.getNodeAs<WhileStmt>("whilestmt")) {
+       loc = S->getBeginLoc().printToString(*Result.SourceManager);
+       exec_count = S->getExecCount();
+    }
+    outs() << loc << " -> " << exec_count << "\n";
+  }
+};
+
 } // namespace
 
 int main(int argc, const char **argv) {
   sys::PrintStackTraceOnErrorSignal(argv[0]);
 
   EntryPoint.setInitialValue("main");
-  TimeBitsSize.setInitialValue(32);
+  Endianness.setInitialValue("big");
+  TraceSize.setInitialValue(0);
 
   auto ExpectedParser =
       ct::CommonOptionsParser::create(argc, argv, CFGExtendExecInfoCat, cl::NumOccurrencesFlag::ZeroOrMore);
@@ -294,31 +336,41 @@ int main(int argc, const char **argv) {
     return 1;
   }
 
+  /*
   if(!IsStructuralAnalysis && !IsTemporalAnalysis) {
     errs() << "Please specify at least one of --structural or --temporal parameters\n";
     errs() << ExpectedParser.takeError();
     return 1;
   }
+  */
 
   if(!OutputDot && !OutputJson) {
     errs() << "Please specify at least one of --dot or --json parameters\n";
     errs() << ExpectedParser.takeError();
     return 1;
   }
+  if(Endianness != "little" && Endianness != "big") {
+    errs() << "Endianness can be only little or big\n";
+    errs() << ExpectedParser.takeError();
+    return 1;
+  }
+  if(TraceSize == 0) {
+    errs() << "Missing trace size\n";
+    return 1;
+  }
 
   ct::CommonOptionsParser &OptionsParser = ExpectedParser.get();
 
   // Get the content of the bitstream trace file
-  vector<uint8_t> *bitstream_trace = nullptr;
+  StatInfASTExtendExecInfoDecl::Bitstream *bitstream = nullptr;
   if(!BitstreamFile.empty()) {
-    ifstream bitstream_fs(BitstreamFile, ios::binary);
-    if(!bitstream_fs.is_open()) {
-      errs() << "Error opening " << BitstreamFile << "\n";
-      return 1;
-    }
-    bitstream_trace = new vector<uint8_t>(istreambuf_iterator<char>(bitstream_fs), {});
-    bitstream_fs.close();
+    bitstream = new StatInfASTExtendExecInfoDecl::Bitstream(
+      BitstreamFile,
+      TraceSize,
+      Endianness == "big" ? StatInfASTExtendExecInfoDecl::Bitstream::Endianness::E_BIG_ENDIAN : StatInfASTExtendExecInfoDecl::Bitstream::Endianness::E_LITTLE_ENDIAN
+    );
   }
+
 
   shared_ptr<PCHContainerOperations> PCHContainerOps = make_shared<PCHContainerOperations>();
   vector<string> C_files, other_files;
@@ -355,23 +407,37 @@ int main(int argc, const char **argv) {
   extractCallGraph(ast.get(), &cg, EntryPoint);
 
   // Add the execution information from the trace
-  if(bitstream_trace) {
+  if(bitstream) {
     am::DeclarationMatcher entrypoint_match = am::functionDecl(am::hasName(EntryPoint)).bind("entrypoint");
 
-    ExtendExecInfoFull extendor(*bitstream_trace, CFGs, &cg);
+    ExtendExecInfoFull extendor(bitstream, CFGs, &cg);
     am::MatchFinder Finder;
     Finder.addMatcher(entrypoint_match, &extendor);
 
-    ExtendExecInfoSplitExec split_extend(*bitstream_trace, CFGs, &cg);
+    ExtendExecInfoSplitExec split_extend(bitstream, CFGs, &cg);
     if(!SplitDir.empty()) {
       Finder.addMatcher(entrypoint_match, &split_extend);
     }
 
     Finder.matchAST(ast->getASTContext());
-    delete bitstream_trace;
+    delete bitstream;
   }
 
   exportCFGs(Out, ast->getASTContext(), CFGs, &cg);
+
+  am::DeclarationMatcher func = am::functionDecl(am::anything()).bind("func");
+  am::StatementMatcher m_dostmt = am::doStmt(am::anything()).bind("dostmt");
+  am::StatementMatcher m_forstmt = am::forStmt(am::anything()).bind("forstmt");
+  am::StatementMatcher m_whilestmt = am::whileStmt(am::anything()).bind("whilestmt");
+  LoopExecCountInfo loop_matcher(&cg);
+  am::MatchFinder Finder;
+  Finder.addMatcher(func, &loop_matcher);
+  Finder.addMatcher(m_dostmt, &loop_matcher);
+  Finder.addMatcher(m_forstmt, &loop_matcher);
+  Finder.addMatcher(m_whilestmt, &loop_matcher);
+
+  outs() << "Loop execution counts from the trace: \n";
+  Finder.matchAST(ast->getASTContext());
   
   return 0;
 }

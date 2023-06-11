@@ -81,12 +81,12 @@ namespace clang {
 
     StatInfASTExtendExecInfoDecl *declvisitor;
 
-    bool enabled_structural;
-    bool enabled_temporal;
+    // bool enabled_structural;
+    // bool enabled_temporal;
 
   public:
-    StatInfASTExtendExecInfoStmt(StatInfASTExtendExecInfoDecl *dv, bool structural, bool temporal)
-        : declvisitor(dv), enabled_structural(structural), enabled_temporal(temporal) {}
+    StatInfASTExtendExecInfoStmt(StatInfASTExtendExecInfoDecl *dv/*, bool structural, bool temporal*/)
+        : declvisitor(dv)/*, enabled_structural(structural), enabled_temporal(temporal)*/ {}
 
     StatInfASTExtendExecInfoStmt_ns::STATUS Visit(Stmt *S);
     StatInfASTExtendExecInfoStmt_ns::STATUS VisitExpr(Expr *S);

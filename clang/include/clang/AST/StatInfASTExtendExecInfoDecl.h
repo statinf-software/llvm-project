@@ -29,77 +29,73 @@
 
 namespace clang {
   class StatInfASTExtendExecInfoDecl : public DeclVisitor<StatInfASTExtendExecInfoDecl> {
+public:
+    class Bitstream {
+    public:
+        enum Endianness {
+            E_BIG_ENDIAN,
+            E_LITTLE_ENDIAN
+        };
+    private:
+        std::vector<uint8_t> bitstream_trace;
+        size_t trace_size = 0; //number of Bytes in a trace
+        size_t trace_char_idx = 0; // index of the current char in the vector
+        uint8_t trace_bit_idx = 7; // index of the current bit in the current char, always between [7,0], decremented to read from left to right
+        size_t eot_char_idx; //char index marking the end of the trace
+
+        uint16_t word_count_in_bitstream;
+        uint16_t bit_count_remaining;
+        size_t timestamp_idx;
+        size_t eot_timestamp_idx;
+        uint16_t word_count_timestamp;
+        uint16_t trace_count;
+
+        Endianness trace_endianness;
+        Endianness host_endianness;
+    public:
+        Bitstream(const std::string & bitstream_filename, size_t trace_size, Endianness en=Endianness::E_BIG_ENDIAN);
+
+        // A bitstream dump can contain multiple traces
+        // each with its header
+        bool loadNewTrace();
+
+        bool loadHeader();
+
+        bool getTraceBit(uint8_t *ret);
+        // Consume n bits from the bitstream, no size restriction
+        void consumeNbits(uint8_t n);
+
+        //End of trace
+        bool EOPayload();
+        //End of timestamp
+        bool EOTimestamp();
+
+        bool EOFile();
+
+        size_t getTimestamp();
+    };
+
+private:
     const ASTContext &Context;
-    const std::vector<unsigned char> &bitstream_trace;
-    bool contains_structural_analysis_data = false;
-    bool contains_temporal_analysis_data = false;
-
-    size_t trace_char_idx = 0; // index of the current char in the vector
-    uint8_t trace_bit_idx = 7; // index of the current bit in the current char, always between [7,0], decremented to read from left to right
-
-    size_t time_num_bits; //number of bits to code a timestamp
+    Bitstream *_bitstream;
+    //bool contains_structural_analysis_data = false;
+    //bool contains_temporal_analysis_data = false;
     StringRef EntryPointName;
 
     llvm::SmallSet<std::string,8> missing_func_body;
 
   public:
-    StatInfASTExtendExecInfoDecl(const ASTContext &Context, StringRef en, const std::vector<unsigned char> &bt, bool structural, bool temporal, size_t tnb)
-        : Context(Context), bitstream_trace(bt), 
-        contains_structural_analysis_data(structural), contains_temporal_analysis_data(temporal), 
-        time_num_bits(tnb), EntryPointName(en) {}
+    StatInfASTExtendExecInfoDecl(const ASTContext &Context, StringRef en, Bitstream *bs/*, bool structural, bool temporal*/)
+        : Context(Context), _bitstream(bs), 
+        /*contains_structural_analysis_data(structural), contains_temporal_analysis_data(temporal), */
+        EntryPointName(en) {}
 
     llvm::SmallSet<std::string,8> getMissingFunctionBody() {return missing_func_body; }
 
-    bool getSmallNBits(uint8_t n, uint8_t *ret);
-    // Consume n bits from the bitstream, no size restriction
-    void consumeNbits(uint8_t n);
-      
+    Bitstream *bitstream() { return _bitstream; }
+
     void VisitFunctionDecl(FunctionDecl *F);
     void VisitVarDecl(VarDecl *D);
     void VisitParmVarDecl(ParmVarDecl *D);
-
-    //true if end of bistream
-    bool EOBS();
-
-        // Get n bits from the bitstream, maximum 8 bits at a time
-    template<typename Ty>
-      bool getNbits(uint8_t n, Ty* valret){
-          if(n > sizeof(valret)*8) {
-              llvm::errs() << "Error: can't get more than " << (sizeof(valret)*8) << " bits at a time -- " << n << "\n";
-              return false;
-          }
-          uint8_t num_bytes = ceil(n / 8.0f);
-
-          if(trace_char_idx+num_bytes > bitstream_trace.size()) {
-              llvm::errs() << trace_char_idx << "+" << num_bytes << ">" << bitstream_trace.size() << "\n";
-              llvm::errs() << "Error: Not enough bytes available in the bitstream\n";
-              trace_char_idx = -1;
-              return false;
-          }
-
-          uint8_t cval[num_bytes];
-          *valret = 0;
-          for(uint8_t i = 0 ; i < num_bytes-1 ; ++i) {
-              if(!getSmallNBits(8, &cval[i]))
-                  return false;
-          }
-
-          uint8_t rest = n - 8 * (num_bytes-1);
-          if(rest) {
-              if(!getSmallNBits(rest, &cval[num_bytes-1]))
-                  return false;
-          }
-
-          uint8_t i;
-          *valret = cval[0];
-          if(num_bytes-1) {
-              for(i=1 ; i < num_bytes-1 ; ++i) {
-                  *valret = ((*valret) << 8) | cval[i];
-              }
-              *valret = ((*valret) << rest) | cval[i];
-          }
-          return true;
-      }
-
   };
 }

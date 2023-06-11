@@ -60,7 +60,7 @@ StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitIfStm
       check_if_proceed(Visit(If->getCond()));
 
     uint8_t get_branch_taken=42;
-    if(!declvisitor->getSmallNBits(1, &get_branch_taken))
+    if(!declvisitor->bitstream()->getTraceBit(&get_branch_taken))
       return StatInfASTExtendExecInfoStmt_ns::STATUS::EXIT_FUNCTION;
 
     if(get_branch_taken) {
@@ -76,7 +76,7 @@ StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitIfStm
 
 StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::visitAllLoopKind(Stmt *loop, Stmt *loop_body) {
     uint8_t get_branch_taken;
-    if(!declvisitor->getSmallNBits(1, &get_branch_taken))
+    if(!declvisitor->bitstream()->getTraceBit(&get_branch_taken))
       return StatInfASTExtendExecInfoStmt_ns::STATUS::EXIT_FUNCTION;
     while(get_branch_taken) {
         loop->incrExec();
@@ -86,7 +86,7 @@ StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::visitAllLo
         if(status == StatInfASTExtendExecInfoStmt_ns::STATUS::EXIT_FUNCTION)
             return status;
 
-        if(!declvisitor->getSmallNBits(1, &get_branch_taken))
+        if(!declvisitor->bitstream()->getTraceBit(&get_branch_taken))
           return StatInfASTExtendExecInfoStmt_ns::STATUS::EXIT_FUNCTION;
     }
     return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
@@ -137,22 +137,22 @@ StatInfASTExtendExecInfoStmt_ns::STATUS StatInfASTExtendExecInfoStmt::VisitSwitc
 
     for(uint32_t cid=0 ; cid < cases.size() ; ++cid) {
         uint8_t is_case_taken;
-        if(!declvisitor->getSmallNBits(1, &is_case_taken))
+        if(!declvisitor->bitstream()->getTraceBit(&is_case_taken))
           return StatInfASTExtendExecInfoStmt_ns::STATUS::EXIT_FUNCTION;
         if(is_case_taken) {
             StatInfASTExtendExecInfoStmt_ns::STATUS status = Visit(cases[cid]);
             if(status == StatInfASTExtendExecInfoStmt_ns::STATUS::BREAK_LOOP) {
-                declvisitor->consumeNbits(cases.size()-cid);
+                declvisitor->bitstream()->consumeNbits(cases.size()-cid);
                 return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
             }
             if(status == StatInfASTExtendExecInfoStmt_ns::STATUS::EXIT_FUNCTION) {
-                declvisitor->consumeNbits(cases.size()-cid);
+                declvisitor->bitstream()->consumeNbits(cases.size()-cid);
                 return status;
             }
 
         }
     }
-    declvisitor->consumeNbits(cases.size());
+    
     return StatInfASTExtendExecInfoStmt_ns::STATUS::PROCEED;
 }
 
