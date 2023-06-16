@@ -374,6 +374,7 @@ int main(int argc, const char **argv) {
 
   shared_ptr<PCHContainerOperations> PCHContainerOps = make_shared<PCHContainerOperations>();
   vector<string> C_files, other_files;
+  map<string,string> pp_c_match;
   IntrusiveRefCntPtr<vfs::OverlayFileSystem> OverlayFileSystem(
     new vfs::OverlayFileSystem(vfs::getRealFileSystem())
   );
@@ -386,7 +387,7 @@ int main(int argc, const char **argv) {
   }
 
   // Scan for additional C files and directories to put in the include paths from a given root project
-  scandir(*OverlayFileSystem, InputDir, IncludePath, C_files, other_files, Filter);
+  scandir(*OverlayFileSystem, InputDir, IncludePath, C_files, other_files, pp_c_match, Filter);
 
   add_include_paths_in_clangtoolarg(IncludePath, *OverlayFileSystem);
   add_defs_in_clangtoolarg(Definitions);

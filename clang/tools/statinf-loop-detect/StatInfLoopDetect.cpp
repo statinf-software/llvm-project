@@ -9,12 +9,10 @@
 #include "llvm/Option/OptTable.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Signals.h"
-#include "clang/AST/StatInfInstrDeclPrinter.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/Tooling/ArgumentsAdjusters.h"
-#include "clang/Analysis/CallGraph.h"
-#include "clang/AST/ASTImporter.h"
+#include "../StatInfCommon/StatInfUtils.h"
 
 #include <iostream>
 #include <string>
@@ -68,6 +66,11 @@ static cl::opt<bool>
       cl::desc("Output format should be XML"),
       cl::cat(OptCat),
       cl::init(false)
+    );
+static cl::opt<string>
+    Filter("filter",
+      cl::desc("Filter out files that matches the given pattern, the full path is checked so a full directory can been filter out."),
+      cl::cat(OptCat)
     );
 
                 
@@ -400,95 +403,37 @@ int main(int argc, const char **argv) {
     if(!OutputJson && !OutputXML)
       OutputJson = true;
 
-    vector<string> args{"-Wno-int-conversion", 
-    "-Wno-unused-value", 
-    "-Wno-implicit-function-declaration", 
-    "-Wno-shift-count-overflow",
-    "-Wno-parentheses-equality",
-    "-Wno-main-return-type",
-    "-Wno-missing-declarations"};
-
     shared_ptr<PCHContainerOperations> PCHContainerOps = make_shared<PCHContainerOperations>();
-    vector<string> AbsolutePaths;
+    vector<string> C_files, other_files;
+    map<string,string> pp_c_match;
     IntrusiveRefCntPtr<vfs::OverlayFileSystem> OverlayFileSystem(
       new vfs::OverlayFileSystem(vfs::getRealFileSystem())
     );
 
-    // Compute all absolute paths before we run any actions, as those will change
-    // the working directory.
-    AbsolutePaths.reserve(OptionsParser.getSourcePathList().size());
-    for (const auto &SourcePath : OptionsParser.getSourcePathList()) {
-      auto AbsPath = ct::getAbsolutePath(*OverlayFileSystem, SourcePath);
-      if (!AbsPath) {
-        errs() << "Skipping " << SourcePath
-                    << ". Error while getting an absolute path: "
-                    << toString(AbsPath.takeError()) << "\n";
-        continue;
-      }
-      AbsolutePaths.push_back(move(*AbsPath));
-    }
+    get_c_files_from_cmdline(C_files, *OverlayFileSystem, OptionsParser);
 
-    if(!InputDir.empty() && !AbsolutePaths.empty()) {
+    if(!InputDir.empty() && !C_files.empty()) {
       errs() << "Can't provide a list of files and an input-dir to scan for source files.\n";
       return 1;
     }
 
     // Scan for additional C files and directories to put in the include paths from a given root project
-    scandir(*OverlayFileSystem, InputDir, IncludePath, AbsolutePaths);
+    scandir(*OverlayFileSystem, InputDir, IncludePath, C_files, other_files, pp_c_match, Filter);
 
-    // Add include paths
-    for(auto I : IncludePath) {
-      auto AbsPath = ct::getAbsolutePath(*OverlayFileSystem, I);
-      if (!AbsPath) {
-        errs() << "Skipping " << I
-                    << ". Error while getting an absolute path: "
-                    << toString(AbsPath.takeError()) << "\n";
-        continue;
-      }
-      args.push_back("-I"+string(AbsPath->c_str()));
-    }
+    add_include_paths_in_clangtoolarg(IncludePath, *OverlayFileSystem);
+    add_defs_in_clangtoolarg(Definitions);
 
-    // Add def symbols
-    for(auto D : Definitions) {
-      args.push_back("-D"+D);
-    }
 
-      //Build an empty AST
+    //Build an empty AST
     unique_ptr<ASTUnit> ast = ct::buildASTFromCode("", "empty.c");
+    map<StringRef, unique_ptr<ASTUnit>> ast_books;
 
+    IntrusiveRefCntPtr<DiagnosticOptions> diagopts = new DiagnosticOptions;
+    diagopts->ShowColors = true;
+    StatInfDiagnosticPrinter diagprinter(llvm::errs(), diagopts);
     //Build all other ASTs and merge them into the empty one
-    for (StringRef File : AbsolutePaths) {
-      //get file content
-      ifstream ifs(File.str());
-      string content( (istreambuf_iterator<char>(ifs) ),
-                        (istreambuf_iterator<char>()    ) );
-      tooling::FileContentMappings files;
-      files.push_back(make_pair(File.str(), content));
+    build_ast_book(ast_books, ast.get(), C_files, args_for_clangtool, &diagprinter);
 
-      //build ast
-      unique_ptr<ASTUnit> tmp_ast = ct::buildASTFromCodeWithArgs(
-          content, args, File.str(), "statinf-CFG-with-trace", PCHContainerOps,
-          tooling::getClangStripDependencyFileAdjuster(), files
-      );
-      if(tmp_ast == nullptr) {
-        errs() << "No AST have been built for " << File.str() << "\n";
-        return -1;
-      }
-
-      //import each toplevel declaration one by one
-      ASTImporter Importer(ast->getASTContext(), ast->getFileManager(),
-                      tmp_ast->getASTContext(), tmp_ast->getFileManager(),
-                      /*MinimalImport=*/false);
-      for(auto decl : tmp_ast->getASTContext().getTranslationUnitDecl()->decls()) {
-        auto ImportedOrErr = Importer.Import(decl);
-        if (!ImportedOrErr) {
-          Error Err = ImportedOrErr.takeError();
-          errs() << "ERROR: " << Err << "\n";
-          consumeError(move(Err));
-          return 1;
-        }
-      }
-    }
 
     // Extract the call graph from the given entrypoint
     am::DeclarationMatcher func = am::functionDecl(am::anything()).bind("func");
