@@ -16,4 +16,5 @@ clang_target_link_libraries(statinf-get-functions-list
   clangFrontend
   clangTooling
   clangToolingSyntax
+  libstatinfclang
   )
