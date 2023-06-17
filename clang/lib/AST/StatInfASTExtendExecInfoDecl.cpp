@@ -139,15 +139,8 @@ bool StatInfASTExtendExecInfoDecl::Bitstream::loadHeader() {
     trace_bit_idx = 7;
     trace_char_idx += 6;
     eot_char_idx = trace_char_idx + word_count_in_bitstream*2;
-    timestamp_idx = eot_char_idx;
-    eot_timestamp_idx = timestamp_idx + word_count_timestamp*2;
-
-    if(eot_timestamp_idx > bitstream_trace.size()) {
-        llvm::errs() << "--> " << eot_timestamp_idx << ">=" << bitstream_trace.size() << "\n";
-        llvm::errs() << "Error: it seems the dump file contains an incomplete trace "<< trace_size << " bytes trace at the end\n";
-        timestamp_idx = -1; //trigger end of file
-        return false;
-    }
+    timestamp_idx = bitstream_trace.size();
+    eot_timestamp_idx = timestamp_idx - word_count_timestamp*2;
 
     if(trace_endianness == Endianness::E_LITTLE_ENDIAN) {
         for(size_t i=trace_char_idx ; i < eot_char_idx ; i+=2) {
@@ -155,13 +148,15 @@ bool StatInfASTExtendExecInfoDecl::Bitstream::loadHeader() {
             bitstream_trace[i] = bitstream_trace[i+1];
             bitstream_trace[i+1] = tmp;
         }
-        for(size_t i=timestamp_idx ; i < eot_timestamp_idx ; i+=4) {
-            uint8_t tmp = bitstream_trace[i];
-            bitstream_trace[i] = bitstream_trace[i+3];
-            bitstream_trace[i+3] = tmp;
-            tmp = bitstream_trace[i+1];
-            bitstream_trace[i] = bitstream_trace[i+2];
-            bitstream_trace[i+2] = tmp;
+        if(word_count_timestamp > 0) {
+            for(size_t i=timestamp_idx-4 ; i > eot_timestamp_idx ; i-=4) {
+                uint8_t tmp = bitstream_trace[i];
+                bitstream_trace[i] = bitstream_trace[i+3];
+                bitstream_trace[i+3] = tmp;
+                tmp = bitstream_trace[i+1];
+                bitstream_trace[i] = bitstream_trace[i+2];
+                bitstream_trace[i+2] = tmp;
+            }
         }
     }
 
@@ -219,14 +214,15 @@ bool StatInfASTExtendExecInfoDecl::Bitstream::EOFile() {
 size_t StatInfASTExtendExecInfoDecl::Bitstream::getTimestamp() {
     uint32_t timestamp = 0;
 
-    if(timestamp_idx+4 > bitstream_trace.size()) {
+    if(timestamp_idx-4 < eot_timestamp_idx) {
         llvm::errs() << "Error: Not enough bytes available in the bitstream to get a timestamp\n";
-        timestamp_idx = -1;
+        timestamp_idx = eot_timestamp_idx;
         return false;
     }
 
+    timestamp_idx -= 4;
     for(uint8_t i = 0 ; i < 4 ; ++i) 
-        timestamp = timestamp | (bitstream_trace[timestamp_idx++] << (8*i));
+        timestamp = timestamp | (bitstream_trace[timestamp_idx+i] << (8*i));
 
     return timestamp;
 }
