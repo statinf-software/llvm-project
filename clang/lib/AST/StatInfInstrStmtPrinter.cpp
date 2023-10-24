@@ -316,7 +316,7 @@ void StatInfInstrStmtPrinter::VisitCaseStmt(CaseStmt *Node) {
   OS << ":" << NL;
 
   if(EnableStructuralAnalysis && enable_instrumentation)
-    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE(" << nested_switch_SID.top() <<", " << switch_case_count++ << ");" << NL;
+    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE(" << nested_switch_SID.top() <<", " << nested_switch_case_count.top()++ <<", " << nested_switch_num_cases.top() << ");" << NL;
 
   PrintStmt(Node->getSubStmt(), 0);
 }
@@ -324,7 +324,7 @@ void StatInfInstrStmtPrinter::VisitCaseStmt(CaseStmt *Node) {
 void StatInfInstrStmtPrinter::VisitDefaultStmt(DefaultStmt *Node) {
   Indent(-1) << "default:" << NL;
   if(EnableStructuralAnalysis && enable_instrumentation)
-    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE(" << nested_switch_SID.top() <<", " << switch_case_count++ << ");" << NL;
+    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE(" << nested_switch_SID.top() <<", " << nested_switch_case_count.top()++ <<", " << nested_switch_num_cases.top() << ");" << NL;
   PrintStmt(Node->getSubStmt(), 0);
 }
 
@@ -462,8 +462,9 @@ void StatInfInstrStmtPrinter::VisitSwitchStmt(SwitchStmt *Node) {
 
     std::string sid = "S"+std::to_string(Context->getSourceManager().getPresumedLoc(Node->getBeginLoc()).getLine());
     nested_switch_SID.push(sid);
+    nested_switch_num_cases.push(num_cases)
 
-    Indent() << "STATINF_INIT_SWITCH(" << nested_switch_SID.top() <<", " << num_cases << ");" << NL;
+    Indent() << "STATINF_INIT_SWITCH(" << nested_switch_SID.top() <<", " << nested_switch_num_cases.top() << ");" << NL;
   }
 
   Indent() << "switch (";
@@ -474,12 +475,13 @@ void StatInfInstrStmtPrinter::VisitSwitchStmt(SwitchStmt *Node) {
   else
     PrintExpr(Node->getCond());
   OS << ")";
-  switch_case_count = 0;
+  nested_switch_case_count.push(0);
   PrintControlledStmt(Node->getBody());
 
   if(EnableStructuralAnalysis && enable_instrumentation) {
-    Indent() << "STATINF_AFTER_SWITCH(" << nested_switch_SID.top() <<", "  << num_cases << ");" << NL;
+    Indent() << "STATINF_AFTER_SWITCH(" << nested_switch_SID.top() <<", "  << nested_switch_num_cases.top() << ");" << NL;
     nested_switch_SID.pop();
+    nested_switch_num_cases.pop();
   }
 }
 
