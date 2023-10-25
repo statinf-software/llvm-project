@@ -462,7 +462,7 @@ void StatInfInstrStmtPrinter::VisitSwitchStmt(SwitchStmt *Node) {
 
     std::string sid = "S"+std::to_string(Context->getSourceManager().getPresumedLoc(Node->getBeginLoc()).getLine());
     nested_switch_SID.push(sid);
-    nested_switch_num_cases.push(num_cases)
+    nested_switch_num_cases.push(num_cases);
 
     Indent() << "STATINF_INIT_SWITCH(" << nested_switch_SID.top() <<", " << nested_switch_num_cases.top() << ");" << NL;
   }
