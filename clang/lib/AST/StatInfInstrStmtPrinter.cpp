@@ -13,6 +13,7 @@
 
 #include "clang/AST/StatInfInstrStmtPrinter.h"
 #include "clang/AST/StatInfInstrDeclPrinter.h"
+
 namespace clang {
 
 namespace {
@@ -150,6 +151,7 @@ namespace {
 //  Stmt printing methods.
 //===----------------------------------------------------------------------===//
 
+uint32_t StatInfInstrStmtPrinter::switch_count = 0;
 /// PrintRawCompoundStmt - Print a compound stmt without indenting the {, and
 /// with no newline after the }.
 void StatInfInstrStmtPrinter::PrintRawCompoundStmt(CompoundStmt *Node) {
@@ -316,7 +318,7 @@ void StatInfInstrStmtPrinter::VisitCaseStmt(CaseStmt *Node) {
   OS << ":" << NL;
 
   if(EnableStructuralAnalysis && enable_instrumentation)
-    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE(" << nested_switch_SID.top() <<", " << nested_switch_case_count.top()++ <<", " << nested_switch_num_cases.top() << ");" << NL;
+    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE(" << nested_switch_ID.top() <<", " << nested_switch_case_count.top()++ <<", " << nested_switch_num_cases.top() << ");" << NL;
 
   PrintStmt(Node->getSubStmt(), 0);
 }
@@ -324,7 +326,7 @@ void StatInfInstrStmtPrinter::VisitCaseStmt(CaseStmt *Node) {
 void StatInfInstrStmtPrinter::VisitDefaultStmt(DefaultStmt *Node) {
   Indent(-1) << "default:" << NL;
   if(EnableStructuralAnalysis && enable_instrumentation)
-    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE(" << nested_switch_SID.top() <<", " << nested_switch_case_count.top()++ <<", " << nested_switch_num_cases.top() << ");" << NL;
+    Indent(Policy.Indentation) << "STATINF_SWITCH_CASE(" << nested_switch_ID.top() <<", " << nested_switch_case_count.top()++ <<", " << nested_switch_num_cases.top() << ");" << NL;
   PrintStmt(Node->getSubStmt(), 0);
 }
 
@@ -460,11 +462,11 @@ void StatInfInstrStmtPrinter::VisitSwitchStmt(SwitchStmt *Node) {
     else
       llvm::errs() << "Weird: Child of a Switch is not a CompoundStmt but a " << Node->getBody()->getStmtClassName();
 
-    std::string sid = "S"+std::to_string(Context->getSourceManager().getPresumedLoc(Node->getBeginLoc()).getLine());
-    nested_switch_SID.push(sid);
     nested_switch_num_cases.push(num_cases);
+    nested_switch_ID.push(switch_count);
+    switch_count++;
 
-    Indent() << "STATINF_INIT_SWITCH(" << nested_switch_SID.top() <<", " << nested_switch_num_cases.top() << ");" << NL;
+    Indent() << "STATINF_INIT_SWITCH(" << nested_switch_ID.top() <<", " << nested_switch_num_cases.top() << ");" << NL;
   }
 
   Indent() << "switch (";
@@ -479,8 +481,8 @@ void StatInfInstrStmtPrinter::VisitSwitchStmt(SwitchStmt *Node) {
   PrintControlledStmt(Node->getBody());
 
   if(EnableStructuralAnalysis && enable_instrumentation) {
-    Indent() << "STATINF_AFTER_SWITCH(" << nested_switch_SID.top() <<", "  << nested_switch_num_cases.top() << ");" << NL;
-    nested_switch_SID.pop();
+    Indent() << "STATINF_AFTER_SWITCH(" << nested_switch_ID.top() <<", "  << nested_switch_num_cases.top() << ");" << NL;
+    nested_switch_ID.pop();
     nested_switch_num_cases.pop();
   }
 }

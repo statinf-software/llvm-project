@@ -79,12 +79,13 @@ namespace clang {
     bool enter_then_body = false; // next CompoundStmt is the body of a then
     bool enter_else_body = false; // next CompoundStmt is the body of a else
     bool enter_main_function = false; // next CompoundStmt is the body of the main function
+    static uint32_t switch_count; // counts the number of SwitchStmt to use as ID
     bool EnableStructuralAnalysis = true; // Enable the addition of the macros only for the structural analysis
     bool EnableTemporalAnalysis = true; // Enable the addition of the macros only for the temporal analysis
     bool entry_point_func = false; // next CompoundStmt is the configured entrypoint
     bool ret_entry_point_func = false; // keep the state of the entrypoint for return instruction
 
-    std::stack<std::string> nested_switch_SID;
+    std::stack<std::uint32_t> nested_switch_ID;
     std::stack<std::uint32_t> nested_switch_num_cases;
     std::stack<std::uint32_t> nested_switch_case_count;
 
