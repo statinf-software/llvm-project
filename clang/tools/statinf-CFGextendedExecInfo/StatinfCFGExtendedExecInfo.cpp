@@ -156,6 +156,11 @@ static cl::opt<size_t>
     cl::desc("Size of a single trace, remind that a bitstream data file can contain multiple traces"),
     cl::cat(CFGExtendExecInfoCat)
   );
+static cl::list<string>
+    ExcludeDir("exclude-dir", 
+      cl::desc("Exclude dir from the recursive scan (can be present multiple times)"),
+      cl::cat(CFGExtendExecInfoCat)
+    );
 
 namespace {
 
@@ -387,7 +392,7 @@ int main(int argc, const char **argv) {
   }
 
   // Scan for additional C files and directories to put in the include paths from a given root project
-  scandir(*OverlayFileSystem, InputDir, IncludePath, C_files, other_files, pp_c_match, Filter);
+  scandir(*OverlayFileSystem, InputDir, IncludePath, C_files, other_files, pp_c_match, ExcludeDir);
 
   add_include_paths_in_clangtoolarg(IncludePath, *OverlayFileSystem);
   add_defs_in_clangtoolarg(Definitions);
@@ -400,7 +405,7 @@ int main(int argc, const char **argv) {
   diagopts->ShowColors = true;
   StatInfDiagnosticPrinter diagprinter(llvm::errs(), diagopts);
   //Build all other ASTs and merge them into the empty one
-  build_ast_book(ast_books, ast.get(), C_files, args_for_clangtool, &diagprinter);
+  build_ast_book(ast_books, ast.get(), C_files, args_for_clangtool, &diagprinter, false);
 
   ListCFGs CFGs;
   ast = extractCFG(move(ast), CFGs);

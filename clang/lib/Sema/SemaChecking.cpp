@@ -2646,6 +2646,9 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
       return ExprError();
     }
   }
+  case Builtin::BI__integer_pack: {
+    
+  }
   }
 
   // Since the target specific builtins for each arch overlap, only check those

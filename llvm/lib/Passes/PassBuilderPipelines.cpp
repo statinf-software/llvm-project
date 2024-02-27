@@ -71,6 +71,7 @@
 #include "llvm/Transforms/Instrumentation/InstrProfiling.h"
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
+#include "llvm/Transforms/Instrumentation/BBInstrumentation.h"
 #include "llvm/Transforms/Scalar/ADCE.h"
 #include "llvm/Transforms/Scalar/AlignmentFromAssumptions.h"
 #include "llvm/Transforms/Scalar/AnnotationRemarks.h"
@@ -213,6 +214,7 @@ extern cl::opt<bool> EnableDFAJumpThreading;
 extern cl::opt<bool> RunNewGVN;
 extern cl::opt<bool> RunPartialInlining;
 extern cl::opt<bool> ExtraVectorizerPasses;
+extern cl::opt<bool> EnableBBInstrumentation;
 
 extern cl::opt<bool> FlattenedProfileUsed;
 
@@ -1308,6 +1310,13 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
 
   ModulePassManager MPM;
 
+
+  // if (EnableBBInstrumentation) {
+  //   FunctionPassManager FPM;
+  //   FPM.addPass(BBInstrumentationPass());
+  //   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+  // }
+
   // Convert @llvm.global.annotations to !annotation metadata.
   MPM.addPass(Annotation2MetadataPass());
 
@@ -1788,6 +1797,12 @@ ModulePassManager PassBuilder::buildO0DefaultPipeline(OptimizationLevel Level,
 
   if (PGOOpt && PGOOpt->DebugInfoForProfiling)
     MPM.addPass(createModuleToFunctionPassAdaptor(AddDiscriminatorsPass()));
+
+  // if (EnableBBInstrumentation) {
+  //   FunctionPassManager FPM;
+  //   FPM.addPass(BBInstrumentationPass());
+  //   MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
+  // }
 
   for (auto &C : PipelineEarlySimplificationEPCallbacks)
     C(MPM, Level);

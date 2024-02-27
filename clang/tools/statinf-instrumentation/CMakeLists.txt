@@ -2,6 +2,7 @@ set( LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   Option
   Support
+  FrontendOpenMP
   )
 
 add_clang_tool(statinf-instrumentation
@@ -10,12 +11,15 @@ add_clang_tool(statinf-instrumentation
 
 clang_target_link_libraries(statinf-instrumentation
   PRIVATE
+  clangAnalysis
   clangAST
+  clangASTMatchers
   clangBasic
   clangDriver
   clangFrontend
+  clangSema
   clangTooling
   clangToolingSyntax
-  clangAnalysis
+  clangSerialization
   libstatinfclang
   )

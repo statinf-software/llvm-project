@@ -671,7 +671,8 @@ void StatInfInstrStmtPrinter::VisitReturnStmt(ReturnStmt *Node) {
   // Create a variable __retval__ to place the result of the computation 
   if(Node->getRetValue() && !isLiteral(Node->getRetValue())) {
     ImplicitCastExpr *tmp = dyn_cast<ImplicitCastExpr>(Node->getRetValue());
-    if(!tmp || (tmp && !isa<DeclRefExpr>(tmp->getSubExpr()))) {
+    const BuiltinType *tmp2 = dyn_cast<BuiltinType>(Node->getRetValue()->getType());
+    if((!tmp || (tmp && !isa<DeclRefExpr>(tmp->getSubExpr()))) && !tmp2) {
       Indent() << "";
       declprinter->printDeclType(Node->getRetValue()->getType(), "__retval__");
       OS << " = ";

@@ -71,14 +71,19 @@ static cl::opt<string>
       cl::desc("If multiple files are given their instrumented version will be stored there"),
       cl::cat(StatInfInstrCategory)
     );
+  static cl::list<string>
+    ExcludeDir("exclude-dir", 
+      cl::desc("Exclude dir from the recursive scan (can be present multiple times)"),
+      cl::cat(StatInfInstrCategory)
+    );
 static cl::opt<bool>
     Intermediate("debug-intermediate",
       cl::desc("Export intermediate C file"),
       cl::cat(StatInfInstrCategory)
     );
-static cl::opt<string>
-    Filter("filter",
-      cl::desc("Filter out files that matches the given pattern, the full path is checked so a full directory can been filter out."),
+static cl::opt<bool>
+    AllFunctions("all-functions",
+      cl::desc("Add instrumentation on all functions rather than on the call graph, mind the size of the final binary."),
       cl::cat(StatInfInstrCategory)
     );
                 
@@ -203,7 +208,7 @@ int main(int argc, const char **argv) {
 
     if(!full_input_dir_path.empty()) {
       // Scan for additional C files and directories to put in the include paths from a given root project
-      scandir(*OverlayFileSystem, full_input_dir_path, IncludePath, C_files, other_files, pp_c_match, Filter);
+      scandir(*OverlayFileSystem, full_input_dir_path, IncludePath, C_files, other_files, pp_c_match, ExcludeDir);
     }
 
     if(C_files.size() > 1 && !Out.empty()) {
@@ -223,10 +228,19 @@ int main(int argc, const char **argv) {
     diagopts->ShowColors = true;
     StatInfDiagnosticPrinter diagprinter(llvm::errs(), diagopts);
     //Build all other ASTs and merge them into the empty one
-    build_ast_book(ast_books, ast.get(), C_files, args_for_clangtool, &diagprinter);
+    build_ast_book(ast_books, ast.get(), C_files, args_for_clangtool, &diagprinter, AllFunctions.getValue());
 
     clang::CallGraph cg;
-    extractCallGraph(ast.get(), &cg, EntryPoint);
+    if(!AllFunctions.getValue())
+      extractCallGraph(ast.get(), &cg, EntryPoint);
+    else {
+      for(auto &astunit : ast_books) {
+        for(auto decl : astunit.second->getASTContext().getTranslationUnitDecl()->decls()) {
+          if(decl->isFunctionOrFunctionTemplate())
+            cg.getOrInsertNode(decl);
+        }
+      }
+    }
 
     if(ast_books.size() == 1) {
       auto &astunit = *(ast_books.begin());

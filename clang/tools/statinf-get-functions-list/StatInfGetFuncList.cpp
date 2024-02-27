@@ -60,9 +60,9 @@ static cl::opt<string>
       cl::desc("Recursively scans this directory to find all .c files, also add all found directories in the include path"),
       cl::cat(OptCat)
     );
-static cl::opt<string>
-    Filter("filter",
-      cl::desc("Filter out files that matches the given pattern, the full path is checked so a full directory can been filter out."),
+  static cl::list<string>
+    ExcludeDir("exclude-dir", 
+      cl::desc("Exclude dir from the recursive scan (can be present multiple times)"),
       cl::cat(OptCat)
     );
                 
@@ -78,17 +78,6 @@ public:
       func_list.push_back(const_cast<FunctionDecl*>(F));
   }
 };
-
-static void scandir(vfs::FileSystem &fs, StringRef dirname, cl::list<string> &dirs, vector<string> &C_files) {
-  dirs.push_back(*(ct::getAbsolutePath(fs, dirname)));
-  error_code EC;
-  for(vfs::directory_iterator elt = fs.dir_begin(dirname, EC), dirend ; elt != dirend && !EC; elt.increment(EC)) {
-    if (elt->path().endswith(".c"))
-      C_files.push_back(*(ct::getAbsolutePath(fs, elt->path())));
-    else if(elt->type() == sys::fs::file_type::directory_file)
-      scandir(fs, elt->path(), dirs, C_files);
-  }
-}
 
 static void printListToJson(raw_ostream &Out, const ASTContext &ctx, vector<FunctionDecl*> flist, const string &inputdir) {
   string sout;
@@ -143,7 +132,7 @@ int main(int argc, const char **argv) {
     }
 
     // Scan for additional C files and directories to put in the include paths from a given root project
-    scandir(*OverlayFileSystem, InputDir, IncludePath, C_files, other_files, pp_c_match, Filter);
+    scandir(*OverlayFileSystem, InputDir, IncludePath, C_files, other_files, pp_c_match, ExcludeDir);
 
     add_include_paths_in_clangtoolarg(IncludePath, *OverlayFileSystem);
     add_defs_in_clangtoolarg(Definitions);
@@ -156,7 +145,7 @@ int main(int argc, const char **argv) {
     diagopts->ShowColors = true;
     StatInfDiagnosticPrinter diagprinter(llvm::errs(), diagopts);
     //Build all other ASTs and merge them into the empty one
-    build_ast_book(ast_books, ast.get(), C_files, args_for_clangtool, &diagprinter);
+    build_ast_book(ast_books, ast.get(), C_files, args_for_clangtool, &diagprinter, false);
 
     string full_input_dir_path = "";
     if(!InputDir.empty()) {

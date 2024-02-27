@@ -20,7 +20,10 @@ vector<string> args_for_clangtool{"-Wno-int-conversion",
     "-Wno-switch",
     "-Wno-literal-conversion",
     "-Wno-unused-command-line-argument",
-    "-Wno-error"
+    "-Wno-error",
+    "-Wno-deprecated"
+    //,
+    // "--target=aarch64-linux-eabi"
     };
 
 string get_full_path(string dir) {
@@ -69,7 +72,7 @@ void add_defs_in_clangtoolarg(cl::list<string> &defs) {
 int build_ast_book(map<StringRef, unique_ptr<ASTUnit>> &ast_book, 
   ASTUnit *app_ast, 
   const vector<string> &files, const vector<string> &args,
-  DiagnosticConsumer *diagcons) {
+  DiagnosticConsumer *diagcons, bool AllFunctions) {
   shared_ptr<PCHContainerOperations> PCHContainerOps = make_shared<PCHContainerOperations>();
   for (StringRef File : files) {
     //get file content
@@ -90,39 +93,53 @@ int build_ast_book(map<StringRef, unique_ptr<ASTUnit>> &ast_book,
       return -1;
     }
 
-    //import each toplevel declaration one by one
-    ASTImporter Importer(app_ast->getASTContext(), app_ast->getFileManager(),
-                    tmp_ast->getASTContext(), tmp_ast->getFileManager(),
-                    /*MinimalImport=*/false);
-    for(auto decl : tmp_ast->getASTContext().getTranslationUnitDecl()->decls()) {
-      auto ImportedOrErr = Importer.Import(decl);
-      if (!ImportedOrErr) {
-        Error Err = ImportedOrErr.takeError();
-        errs() << "ERROR: " << Err << "\n";
-        consumeError(move(Err));
-        return 1;
+    if(!AllFunctions) {
+      //import each toplevel declaration one by one
+      ASTImporter Importer(app_ast->getASTContext(), app_ast->getFileManager(),
+                      tmp_ast->getASTContext(), tmp_ast->getFileManager(),
+                      /*MinimalImport=*/false);
+      Importer.setODRHandling(ASTImporter::ODRHandlingType::Liberal);
+      for(auto decl : tmp_ast->getASTContext().getTranslationUnitDecl()->decls()) {
+        auto ImportedOrErr = Importer.Import(decl);
+        if (!ImportedOrErr) {
+          Error Err = ImportedOrErr.takeError();
+          errs() << "ERROR: " << Err << "\n";
+          consumeError(move(Err));
+          return 1;
+        }
       }
     }
     ast_book[File] = move(tmp_ast);
   }
   return 0;
 }
-
-void scandir(vfs::FileSystem &fs, StringRef dirname, cl::list<string> &dirs, vector<string> &C_files, vector<string> &other_files, map<string,string> &pp_c_match, string Filter) {
+#include <iostream>
+void scandir(vfs::FileSystem &fs, StringRef dirname, cl::list<string> &dirs, vector<string> &C_files, vector<string> &other_files, map<string,string> &pp_c_match, cl::list<string> &ExcludeDir) {
   dirs.push_back(*(ct::getAbsolutePath(fs, dirname)));
   error_code EC;
   vector<string> pp_cfiles;
   for(vfs::directory_iterator elt = fs.dir_begin(dirname, EC), dirend ; elt != dirend && !EC; elt.increment(EC)) {
-    if(!Filter.empty() && elt->path().str().find(Filter) != string::npos)
-      continue;
-    if(elt->type() == sys::fs::file_type::directory_file)
-      scandir(fs, elt->path(), dirs, C_files, other_files, pp_c_match, Filter);
-    else if (elt->path().endswith(".c") || elt->path().endswith(".cla"))
+    if(elt->type() == sys::fs::file_type::directory_file) {
+      bool excluded = false;
+      for(string ed : ExcludeDir) {
+        if(elt->path().endswith(ed)) {
+          excluded = true;
+          break;
+        }
+      }
+      if(!excluded)
+        scandir(fs, elt->path(), dirs, C_files, other_files, pp_c_match, ExcludeDir);
+    }
+    else if (elt->path().endswith(".c") || elt->path().endswith(".cpp") || elt->path().endswith(".cc") || elt->path().endswith(".cla")) {
       C_files.push_back(*(ct::getAbsolutePath(fs, elt->path())));
-    else if (elt->path().endswith(".pp")) 
+    }
+    // .i is the preprocessed extension from cmake
+    else if (elt->path().endswith(".pp")) {
       pp_cfiles.push_back(*(ct::getAbsolutePath(fs, elt->path())));
-    else 
+    }
+    else {
       other_files.push_back(*(ct::getAbsolutePath(fs, elt->path())));
+    }
   }
   
   if(!pp_cfiles.empty()) {
@@ -130,8 +147,7 @@ void scandir(vfs::FileSystem &fs, StringRef dirname, cl::list<string> &dirs, vec
       size_t pos = ppfile.find_last_of('.');
       string ppfile_noext = ppfile.substr(0, pos);
       auto it = find_if(C_files.begin(), C_files.end(), [ppfile_noext](const string &cfile) {
-        size_t pos = cfile.find_last_of('.');
-        return ppfile_noext == cfile.substr(0, pos);
+        return ppfile_noext == cfile;
       });
       if(it != C_files.end()) {
         pp_c_match[ppfile] = *it;
@@ -145,7 +161,7 @@ void scandir(vfs::FileSystem &fs, StringRef dirname, cl::list<string> &dirs, vec
     for(auto it = C_files.begin(), et=C_files.end() ; it != et ; ++it) {
       size_t pos = it->find_last_of('.');
       string ext = it->substr(pos, it->size());
-      if(ext == ".c" || ext == ".cla") {
+      if(ext == ".c" || ext == ".cpp" || ext == ".cc" || ext == ".cla") {
         to_delete.push_back(it);
       }
     }
@@ -187,6 +203,7 @@ void get_c_files_from_cmdline(vector<string> &C_files, llvm::vfs::FileSystem &FS
                   << toString(AbsPath.takeError()) << "\n";
       continue;
     }
+    llvm::errs() << SourcePath << "\n";
     C_files.push_back(move(*AbsPath));
   }
 }

@@ -524,7 +524,8 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
 bool CodeGenFunction::ShouldInstrumentFunction() {
   if (!CGM.getCodeGenOpts().InstrumentFunctions &&
       !CGM.getCodeGenOpts().InstrumentFunctionsAfterInlining &&
-      !CGM.getCodeGenOpts().InstrumentFunctionEntryBare)
+      !CGM.getCodeGenOpts().InstrumentFunctionEntryBare&&
+      !CGM.getCodeGenOpts().InstrumentFunctionsBBs)
     return false;
   if (!CurFuncDecl || CurFuncDecl->hasAttr<NoInstrumentFunctionAttr>())
     return false;
@@ -1027,6 +1028,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     if (CGM.getCodeGenOpts().InstrumentFunctionEntryBare)
       CurFn->addFnAttr("instrument-function-entry-inlined",
                        "__cyg_profile_func_enter_bare");
+    if (CGM.getCodeGenOpts().InstrumentFunctionsBBs)
+      CurFn->addFnAttr("instrument-function-bbs", "doit");
   }
 
   // Since emitting the mcount call here impacts optimizations such as function

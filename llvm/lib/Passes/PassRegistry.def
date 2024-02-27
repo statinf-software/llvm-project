@@ -126,6 +126,7 @@ MODULE_PASS("sancov-module", ModuleSanitizerCoveragePass())
 MODULE_PASS("memprof-module", ModuleMemProfilerPass())
 MODULE_PASS("poison-checking", PoisonCheckingPass())
 MODULE_PASS("pseudo-probe-update", PseudoProbeUpdatePass())
+MODULE_PASS("bbinstr-mod", BBInstrumentationPass())
 #undef MODULE_PASS
 
 #ifndef MODULE_PASS_WITH_PARAMS
@@ -382,6 +383,7 @@ FUNCTION_PASS("tlshoist", TLSVariableHoistPass())
 FUNCTION_PASS("transform-warning", WarnMissedTransformationsPass())
 FUNCTION_PASS("tsan", ThreadSanitizerPass())
 FUNCTION_PASS("memprof", MemProfilerPass())
+FUNCTION_PASS("bbinstr", BBInstrumentationPass())
 #undef FUNCTION_PASS
 
 #ifndef FUNCTION_PASS_WITH_PARAMS
@@ -400,6 +402,13 @@ FUNCTION_PASS_WITH_PARAMS("ee-instrument",
                              return EntryExitInstrumenterPass(PostInlining);
                            },
                           parseEntryExitInstrumenterPassOptions,
+                          "post-inline")
+FUNCTION_PASS_WITH_PARAMS("bbinstr",
+                          "BBInstrumentationPass",
+                           [](bool PostInlining) {
+                             return BBInstrumentationPass(PostInlining);
+                           },
+                          parseBBInstrumentationPassOptions,
                           "post-inline")
 FUNCTION_PASS_WITH_PARAMS("lower-matrix-intrinsics",
                           "LowerMatrixIntrinsicsPass",

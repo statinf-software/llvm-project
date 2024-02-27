@@ -48,6 +48,7 @@
 #include "llvm/Transforms/Scalar/PartiallyInlineLibCalls.h"
 #include "llvm/Transforms/Scalar/ScalarizeMaskedMemIntrin.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
+#include "llvm/Transforms/Instrumentation/BBInstrumentation.h"
 #include "llvm/Transforms/Utils/LowerInvoke.h"
 #include <cassert>
 #include <type_traits>
@@ -655,6 +656,9 @@ void CodeGenPassBuilder<Derived>::addIRPasses(AddIRPass &addPass) const {
 
   // Instrument function entry and exit, e.g. with calls to mcount().
   addPass(EntryExitInstrumenterPass(/*PostInlining=*/true));
+
+  // Instrument function BBs.
+  addPass(BBInstrumentationPass(/*PostInlining=*/true));
 
   // Add scalarization of target's unsupported masked memory intrinsics pass.
   // the unsupported intrinsic will be replaced with a chain of basic blocks,

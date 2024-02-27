@@ -145,6 +145,7 @@ void StatInfInstrDeclPrinter::printDeclType(QualType T, StringRef DeclName, bool
     Pack = true;
     T = PET->getPattern();
   }
+  Policy.SuppressScope = true;
   T.print(Out, Policy, (Pack ? "..." : "") + DeclName, Indentation);
 }
 
@@ -244,6 +245,13 @@ void StatInfInstrDeclPrinter::VisitDeclContext(DeclContext *DC, bool Indent) {
   for (DeclContext::decl_iterator D = DC->decls_begin(), DEnd = DC->decls_end();
        D != DEnd; ++D) {
 
+  //     std::pair<FileID, unsigned> Decomposed = D->getASTContext().getSourceManager().getDecomposedLoc(D->getLocation());
+  // const SrcMgr::SLocEntry &FromSLoc = D->getASTContext().getSourceManager().getSLocEntry(Decomposed.first);
+  // if(FromSLoc.isFile())
+  //   llvm::errs() << D->getDeclKindName() << " -- " << FromSLoc.getFile().getName() << "\n";
+  // else
+  //   llvm::errs() << D->getDeclKindName() << " not in a file\n";
+
     // Don't print ObjCIvarDecls, as they are printed when visiting the
     // containing ObjCInterfaceDecl.
     if (isa<ObjCIvarDecl>(*D))
@@ -314,12 +322,12 @@ void StatInfInstrDeclPrinter::VisitDeclContext(DeclContext *DC, bool Indent) {
     else if (isa<ObjCMethodDecl>(*D) && cast<ObjCMethodDecl>(*D)->hasBody())
       Terminator = nullptr;
     else if (auto FD = dyn_cast<FunctionDecl>(*D)) {
-      if (FD->isThisDeclarationADefinition())
+      if (FD->isThisDeclarationADefinition() && !FD->isDeletedAsWritten() && !FD->isDefaulted() && !FD->hasSkippedBody())
         Terminator = nullptr;
       else
         Terminator = ";";
     } else if (auto TD = dyn_cast<FunctionTemplateDecl>(*D)) {
-      if (TD->getTemplatedDecl()->isThisDeclarationADefinition())
+      if (TD->getTemplatedDecl()->isThisDeclarationADefinition() && !TD->getTemplatedDecl()->isDeletedAsWritten() && !TD->getTemplatedDecl()->isDefaulted() && !TD->getTemplatedDecl()->hasSkippedBody())
         Terminator = nullptr;
       else
         Terminator = ";";
@@ -343,9 +351,12 @@ void StatInfInstrDeclPrinter::VisitDeclContext(DeclContext *DC, bool Indent) {
       Out << Terminator;
     if (!Policy.TerseOutput &&
         ((isa<FunctionDecl>(*D) &&
-          cast<FunctionDecl>(*D)->doesThisDeclarationHaveABody()) ||
+          cast<FunctionDecl>(*D)->doesThisDeclarationHaveABody()
+           && !cast<FunctionDecl>(*D)->isDeletedAsWritten() && !cast<FunctionDecl>(*D)->isDefaulted() && !cast<FunctionDecl>(*D)->hasSkippedBody()) ||
          (isa<FunctionTemplateDecl>(*D) &&
-          cast<FunctionTemplateDecl>(*D)->getTemplatedDecl()->doesThisDeclarationHaveABody())))
+          cast<FunctionTemplateDecl>(*D)->getTemplatedDecl()->doesThisDeclarationHaveABody()
+           && !cast<FunctionTemplateDecl>(*D)->getTemplatedDecl()->isDeletedAsWritten() && !cast<FunctionTemplateDecl>(*D)->getTemplatedDecl()->isDefaulted() && !cast<FunctionTemplateDecl>(*D)->getTemplatedDecl()->hasSkippedBody()
+          )))
       ; // StmtPrinter already added '\n' after CompoundStmt.
     else
       Out << "\n";
@@ -366,7 +377,7 @@ void StatInfInstrDeclPrinter::VisitDeclContext(DeclContext *DC, bool Indent) {
 void StatInfInstrDeclPrinter::VisitTranslationUnitDecl(TranslationUnitDecl *D) {
   if(callgraph && (EnableStructuralAnalysis || EnableTemporalAnalysis)) {
     for(Decl *d : D->decls()) {
-      if(isa<FunctionDecl>(d) && d->getAsFunction()->hasBody() && callgraph->getNode(d->getAsFunction()->getName())) {
+      if(isa<FunctionDecl>(d) && d->getAsFunction()->hasBody() /*&& callgraph->getNode(d->getAsFunction()->getName())*/) {
         first_function_with_instrumentation = dyn_cast<FunctionDecl>(d);
         break;
       }
@@ -616,7 +627,7 @@ void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
           Proto += FT->getExceptionType(I).getAsString(SubPolicy);
         }
       Proto += ")";
-    } else if (FT && isNoexceptExceptionSpec(FT->getExceptionSpecType())) {
+    } else if (FT && isNoexceptExceptionSpec(FT->getExceptionSpecType()) && !isComputedNoexcept(FT->getExceptionSpecType())) {
       Proto += " noexcept";
       if (isComputedNoexcept(FT->getExceptionSpecType())) {
         Proto += "(";
@@ -629,7 +640,7 @@ void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     }
 
     if (CDecl) {
-      if (!Policy.TerseOutput)
+      if (!Policy.TerseOutput && !CDecl->isDefaulted() && !CDecl->isDeletedAsWritten())
         PrintConstructorInitializers(CDecl, Proto);
     } else if (!ConversionDecl && !isa<CXXDestructorDecl>(D)) {
       if (FT && FT->hasTrailingReturn()) {
@@ -689,7 +700,8 @@ void StatInfInstrDeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
           - structural: the function is in the call graph
           - temporal: the function is the entrypoint given by the user
         */
-        if(EnableStructuralAnalysis && callgraph && callgraph->getNode(D->getName()))
+       //TODO: callgraph call is broken with dynamic linking of clang libraries
+        if(EnableStructuralAnalysis)// && callgraph && callgraph->getNode(D->getName()))
           P.SetEnableInstrumentation();
         if(EnableTemporalAnalysis && D->getName() == entrypoint_func_name.str())
           P.SetEnableInstrumentation();

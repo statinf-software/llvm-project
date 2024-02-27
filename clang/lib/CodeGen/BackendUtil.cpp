@@ -74,6 +74,7 @@
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
 #include "llvm/Transforms/Instrumentation/ThreadSanitizer.h"
+#include "llvm/Transforms/Instrumentation/BBInstrumentation.h"
 #include "llvm/Transforms/ObjCARC.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
@@ -870,6 +871,14 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
                                            /*DropTypeTests=*/true));
           });
 
+
+    if(CodeGenOpts.InstrumentFunctionsBBs) {
+      PB.registerPipelineStartEPCallback(
+        [](ModulePassManager &MPM, OptimizationLevel Level) {
+          MPM.addPass(BBInstrumentationPass());
+          MPM.addPass(createModuleToFunctionPassAdaptor(BBInstrumentationPass(false)));
+        });
+    }
     if (CodeGenOpts.InstrumentFunctions ||
         CodeGenOpts.InstrumentFunctionEntryBare ||
         CodeGenOpts.InstrumentFunctionsAfterInlining ||
@@ -925,6 +934,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       MPM.addPass(createModuleToFunctionPassAdaptor(MemProfilerPass()));
       MPM.addPass(ModuleMemProfilerPass());
     }
+
   }
 
   // Add a verifier pass if requested. We don't have to do this if the action

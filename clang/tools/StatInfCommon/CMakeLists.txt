@@ -24,12 +24,14 @@ endif()
 set(LIBS
   clangAnalysis
   clangAST
+  clangASTMatchers
   clangBasic
   clangDriver
   clangFrontend
   clangSema
   clangTooling
   clangToolingSyntax
+  clangSerialization
 )
 
 add_clang_library(libstatinfclang ${ENABLE_SHARED} ${ENABLE_STATIC} INSTALL_WITH_TOOLCHAIN
@@ -46,4 +48,5 @@ add_clang_library(libstatinfclang ${ENABLE_SHARED} ${ENABLE_STATIC} INSTALL_WITH
   ${LLVM_TARGETS_TO_BUILD}
   Core
   Support
+  FrontendOpenMP
   )

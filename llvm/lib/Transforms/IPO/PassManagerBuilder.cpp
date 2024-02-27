@@ -163,6 +163,12 @@ cl::opt<AttributorRunOption> AttributorRun(
                clEnumValN(AttributorRunOption::NONE, "none",
                           "disable attributor runs")));
 
+
+cl::opt<bool> EnableBBInstrumentation (
+  "bbinstr", cl::init(false), cl::Hidden,
+  cl::desc("Enable BB instrumentation")
+);
+
 extern cl::opt<bool> EnableKnowledgeRetention;
 } // namespace llvm
 
