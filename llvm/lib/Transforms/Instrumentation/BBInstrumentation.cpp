@@ -96,68 +96,60 @@ static bool runOnModule(Module &M, bool PostInlining) {
     //       }
     //     }
     // }
-    return false;
+    return true;
 }
 
 static bool runOnFunction(Function &F, bool PostInlining) {
   bool Changed = false;
-  StringRef EntryAttr = "instrument-function-bbs";
-  if(!F.hasFnAttribute(EntryAttr))
-    return Changed;
+  // StringRef EntryAttr = "instrument-function-bbs";
+  // if(!F.hasFnAttribute(EntryAttr))
+  //   return Changed;
 
-  // If the attribute is specified, insert instrumentation and then "consume"
-  // the attribute so that it's not inserted again if the pass should happen to
-  // run later for some reason.
-  F.removeFnAttr(EntryAttr);
+  // // If the attribute is specified, insert instrumentation and then "consume"
+  // // the attribute so that it's not inserted again if the pass should happen to
+  // // run later for some reason.
+  // F.removeFnAttr(EntryAttr);
 
-  SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
-  F.getAllMetadata(MDs);
-  bool localChecked = false;
-  for (auto &MD : MDs) {
-    if (MDNode *N = MD.second) {
-      if (auto *subProgram = dyn_cast<DISubprogram>(N)) {
-        localChecked = true;
-        if(!subProgram->isLocalToUnit() || !subProgram->isDefinition() || subProgram->isMainSubprogram()) {
-          return Changed;
-        }
-      }
-    }
-  }
-  // if(!localChecked)
-    // return Changed;
+  // SmallVector<std::pair<unsigned, MDNode *>, 4> MDs;
+  // F.getAllMetadata(MDs);
+  // bool localChecked = false;
+  // for (auto &MD : MDs) {
+  //   if (MDNode *N = MD.second) {
+  //     if (auto *subProgram = dyn_cast<DISubprogram>(N)) {
+  //       localChecked = true;
+  //       if(!subProgram->isLocalToUnit() || !subProgram->isDefinition() || subProgram->isMainSubprogram()) {
+  //         return Changed;
+  //       }
+  //     }
+  //   }
+  // }
+  // // if(!localChecked)
+  //   // return Changed;
 
-  string name = demangle(F.getName().str());
+  // BasicBlock &BB = F.getEntryBlock();
+  // Instruction &I = *BB.getFirstInsertionPt();
 
-  for (BasicBlock &BB : F) {
-    Instruction &I = *BB.getFirstInsertionPt();
-    DebugLoc DL;
-    if (DebugLoc IDL = I.getDebugLoc())
-        DL = IDL;
-    else if (auto SP = F.getSubprogram())
-      DL = DILocation::get(SP->getContext(), SP->getScopeLine(), 0, SP);
+  // string name = demangle(F.getName().str());
+  // DebugLoc DL;
+  // if (DebugLoc IDL = I.getDebugLoc())
+  //     DL = IDL;
+  // else if (auto SP = F.getSubprogram())
+  //   DL = DILocation::get(SP->getContext(), SP->getScopeLine(), 0, SP);
+  
+  // insertCall(F, "profile_enter_func", &I, DL);
+
+  // // for (BasicBlock &BB : F) {
+  // //   Instruction &I = *BB.getFirstInsertionPt();
+  // //   DebugLoc DL;
+  // //   if (DebugLoc IDL = I.getDebugLoc())
+  // //       DL = IDL;
+  // //   else if (auto SP = F.getSubprogram())
+  // //     DL = DILocation::get(SP->getContext(), SP->getScopeLine(), 0, SP);
     
-    if(BB.isEntryBlock())
-      insertCall(F, "profile_enter_fun", &I, DL);
-    else
-      insertCall(F, "profile_enter_bb", &I, DL);
+  // //   insertCall(F, "profile_enter_bb", &I, DL);
 
-    Instruction *T = BB.getTerminator();
-      if (!isa<ReturnInst>(T))
-        continue;
-
-      // If T is preceded by a musttail call, that's the real terminator.
-      if (CallInst *CI = BB.getTerminatingMustTailCall())
-        T = CI;
-
-      DebugLoc DLT;
-      if (DebugLoc TerminatorDL = T->getDebugLoc())
-        DLT = TerminatorDL;
-      else if (auto SP = F.getSubprogram())
-        DLT = DILocation::get(SP->getContext(), 0, 0, SP);
-
-      insertCall(F, "profile_exit_fun", T, DLT);
-      Changed = true;
-  }
+  // //   Changed = true;
+  // // }
 
   return Changed;
 }

@@ -5631,6 +5631,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                   options::OPT_finstrument_functions_after_inlining,
                   options::OPT_finstrument_function_entry_bare);
   Args.AddLastArg(CmdArgs, options::OPT_finstrument_functions_bbs);
+  Args.AddLastArg(CmdArgs, options::OPT_finstrument_functions_all_bbs);
 
   // NVPTX/AMDGCN doesn't support PGO or coverage. There's no runtime support
   // for sampling, overhead of call arc collection is way too high and there's

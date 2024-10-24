@@ -2057,6 +2057,13 @@ def NoInstrumentFunction : InheritableAttr {
   let SimpleHandler = 1;
 }
 
+def InstrumentFunction : InheritableAttr {
+  let Spellings = [Clang<"instrument_function">];
+  let Subjects = SubjectList<[Function, ObjCMethod, CXXMethod]>;
+  let Documentation = [Undocumented];
+  let SimpleHandler = 1;
+}
+
 def NoProfileFunction : InheritableAttr {
   let Spellings = [GCC<"no_profile_instrument_function">];
   let Subjects = SubjectList<[Function]>;

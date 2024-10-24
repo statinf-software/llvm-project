@@ -871,7 +871,8 @@ void AArch64AsmPrinter::emitFunctionEntryLabel() {
     TS->emitDirectiveVariantPCS(CurrentFnSym);
   }
 
-  return AsmPrinter::emitFunctionEntryLabel();
+  AsmPrinter::emitFunctionEntryLabel();
+  OutStreamer->emitLabel(MF->begin()->getSymbol());
 }
 
 /// Small jump tables contain an unsigned byte or half, representing the offset

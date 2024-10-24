@@ -104,6 +104,8 @@ CODEGENOPT(InstrumentFunctionEntryBare , 1, 0) ///< Set when
                                ///< -finstrument-function-entry-bare is enabled.
 CODEGENOPT(InstrumentFunctionsBBs , 1, 0) ///< Set when -finstrument-functions-bbs is
                                        ///< enabled.
+CODEGENOPT(InstrumentFunctionsAllBBs , 1, 0) ///< Set when -finstrument-functions-bbs is
+                                       ///< enabled.
 CODEGENOPT(CFProtectionReturn , 1, 0) ///< if -fcf-protection is
                                       ///< set to full or return.
 CODEGENOPT(CFProtectionBranch , 1, 0) ///< if -fcf-protection is

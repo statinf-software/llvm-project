@@ -2014,6 +2014,9 @@ def finstrument_functions_after_inlining : Flag<["-"], "finstrument-functions-af
 def finstrument_functions_bbs : Flag<["-"], "finstrument-functions-bbs">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Like -finstrument-functions, but insert calls at each BBs">,
   MarshallingInfoFlag<CodeGenOpts<"InstrumentFunctionsBBs">>;
+def finstrument_functions_all_bbs : Flag<["-"], "finstrument-functions-all-bbs">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Like -finstrument-functions, but insert calls at each BBs for all functions except if marked as no_instrument_function">,
+  MarshallingInfoFlag<CodeGenOpts<"InstrumentFunctionsAllBBs">>;
 def finstrument_function_entry_bare : Flag<["-"], "finstrument-function-entry-bare">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Instrument function entry only, after inlining, without arguments to the instrumentation call">,
   MarshallingInfoFlag<CodeGenOpts<"InstrumentFunctionEntryBare">>;

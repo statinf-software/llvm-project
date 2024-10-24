@@ -45,6 +45,7 @@
 #include "llvm/Support/CRC.h"
 #include "llvm/Transforms/Scalar/LowerExpectIntrinsic.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
+#include "llvm/IR/Metadata.h"
 
 using namespace clang;
 using namespace CodeGen;
@@ -525,7 +526,8 @@ bool CodeGenFunction::ShouldInstrumentFunction() {
   if (!CGM.getCodeGenOpts().InstrumentFunctions &&
       !CGM.getCodeGenOpts().InstrumentFunctionsAfterInlining &&
       !CGM.getCodeGenOpts().InstrumentFunctionEntryBare&&
-      !CGM.getCodeGenOpts().InstrumentFunctionsBBs)
+      !CGM.getCodeGenOpts().InstrumentFunctionsBBs && 
+      !CGM.getCodeGenOpts().InstrumentFunctionsAllBBs)
     return false;
   if (!CurFuncDecl || CurFuncDecl->hasAttr<NoInstrumentFunctionAttr>())
     return false;
@@ -1028,8 +1030,13 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
     if (CGM.getCodeGenOpts().InstrumentFunctionEntryBare)
       CurFn->addFnAttr("instrument-function-entry-inlined",
                        "__cyg_profile_func_enter_bare");
-    if (CGM.getCodeGenOpts().InstrumentFunctionsBBs)
+    if (CGM.getCodeGenOpts().InstrumentFunctionsAllBBs) {
       CurFn->addFnAttr("instrument-function-bbs", "doit");
+    }
+    if(CGM.getCodeGenOpts().InstrumentFunctionsBBs && CurFuncDecl && CurFuncDecl->hasAttr<InstrumentFunctionAttr>()) {
+      // llvm::errs() << "---> Instrument: " << CurFn->getName() << "\n";
+      CurFn->addFnAttr("instrument-function-bbs", "doit");
+    }
   }
 
   // Since emitting the mcount call here impacts optimizations such as function
