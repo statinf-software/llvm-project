@@ -34,7 +34,6 @@ private:
   ScopedString Message;
 };
 
-inline void NORETURN trap() { __builtin_trap(); }
 
 // This could potentially be called recursively if a CHECK fails in the reports.
 void NORETURN reportCheckFailed(const char *File, int Line,
@@ -42,7 +41,7 @@ void NORETURN reportCheckFailed(const char *File, int Line,
   static atomic_u32 NumberOfCalls;
   if (atomic_fetch_add(&NumberOfCalls, 1, memory_order_relaxed) > 2) {
     // TODO(kostyak): maybe sleep here?
-    trap();
+    __builtin_trap();
   }
   ScopedErrorReport Report;
   Report.append("CHECK failed @ %s:%d %s ((u64)op1=%llu, (u64)op2=%llu)\n",
