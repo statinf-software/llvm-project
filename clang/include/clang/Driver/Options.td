@@ -2008,6 +2008,9 @@ def fexec_charset_EQ : Joined<["-"], "fexec-charset=">, Group<f_Group>;
 def finstrument_functions : Flag<["-"], "finstrument-functions">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Generate calls to instrument function entry and exit">,
   MarshallingInfoFlag<CodeGenOpts<"InstrumentFunctions">>;
+def finstrument_functions_select : Flag<["-"], "finstrument-functions-select">, Group<f_Group>, Flags<[CC1Option]>,
+  HelpText<"Generate calls to instrument selected function entry and exit, only functions marked with attr instrument_function">,
+  MarshallingInfoFlag<CodeGenOpts<"InstrumentFunctionsSelect">>;
 def finstrument_functions_after_inlining : Flag<["-"], "finstrument-functions-after-inlining">, Group<f_Group>, Flags<[CC1Option]>,
   HelpText<"Like -finstrument-functions, but insert the calls after inlining">,
   MarshallingInfoFlag<CodeGenOpts<"InstrumentFunctionsAfterInlining">>;

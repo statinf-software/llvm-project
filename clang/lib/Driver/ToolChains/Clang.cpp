@@ -5630,6 +5630,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_finstrument_functions,
                   options::OPT_finstrument_functions_after_inlining,
                   options::OPT_finstrument_function_entry_bare);
+  Args.AddLastArg(CmdArgs, options::OPT_finstrument_functions_select);
   Args.AddLastArg(CmdArgs, options::OPT_finstrument_functions_bbs);
   Args.AddLastArg(CmdArgs, options::OPT_finstrument_functions_all_bbs);
 

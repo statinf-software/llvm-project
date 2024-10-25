@@ -379,6 +379,8 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
   if (ShouldInstrumentFunction()) {
     if (CGM.getCodeGenOpts().InstrumentFunctions)
       CurFn->addFnAttr("instrument-function-exit", "__cyg_profile_func_exit");
+    if (CGM.getCodeGenOpts().InstrumentFunctionsSelect && CurFuncDecl && CurFuncDecl->hasAttr<InstrumentFunctionAttr>())
+      CurFn->addFnAttr("instrument-function-exit", "__cyg_profile_func_exit");
     if (CGM.getCodeGenOpts().InstrumentFunctionsAfterInlining)
       CurFn->addFnAttr("instrument-function-exit-inlined",
                        "__cyg_profile_func_exit");
@@ -524,6 +526,7 @@ void CodeGenFunction::FinishFunction(SourceLocation EndLoc) {
 /// instrumented with __cyg_profile_func_* calls
 bool CodeGenFunction::ShouldInstrumentFunction() {
   if (!CGM.getCodeGenOpts().InstrumentFunctions &&
+      !CGM.getCodeGenOpts().InstrumentFunctionsSelect &&
       !CGM.getCodeGenOpts().InstrumentFunctionsAfterInlining &&
       !CGM.getCodeGenOpts().InstrumentFunctionEntryBare&&
       !CGM.getCodeGenOpts().InstrumentFunctionsBBs && 
@@ -1024,6 +1027,9 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
   if (ShouldInstrumentFunction()) {
     if (CGM.getCodeGenOpts().InstrumentFunctions)
       CurFn->addFnAttr("instrument-function-entry", "__cyg_profile_func_enter");
+    if (CGM.getCodeGenOpts().InstrumentFunctionsSelect && CurFuncDecl && CurFuncDecl->hasAttr<InstrumentFunctionAttr>()) {
+      CurFn->addFnAttr("instrument-function-entry", "__cyg_profile_func_enter");
+    }
     if (CGM.getCodeGenOpts().InstrumentFunctionsAfterInlining)
       CurFn->addFnAttr("instrument-function-entry-inlined",
                        "__cyg_profile_func_enter");

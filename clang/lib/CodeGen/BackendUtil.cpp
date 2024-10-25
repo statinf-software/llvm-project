@@ -880,6 +880,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
         });
     }
     if (CodeGenOpts.InstrumentFunctions ||
+        CodeGenOpts.InstrumentFunctionsSelect ||
         CodeGenOpts.InstrumentFunctionEntryBare ||
         CodeGenOpts.InstrumentFunctionsAfterInlining ||
         CodeGenOpts.InstrumentForProfiling) {
